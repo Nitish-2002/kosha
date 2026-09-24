@@ -1,0 +1,68 @@
+.confirm-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+}
+
+.confirm-dialog {
+  width: 100%;
+  max-width: 380px;
+  padding: 24px;
+  background: var(--color-black-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.5);
+
+  h2 {
+    margin: 0 0 8px;
+    font-size: 1.1rem;
+  }
+
+  p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.9rem;
+    // Preserves newlines (e.g. a bulk-delete's list of affected names)
+    // without needing every caller to pass JSX instead of a plain string.
+    white-space: pre-line;
+    max-height: 240px;
+    overflow-y: auto;
+  }
+}
+
+.confirm-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 20px;
+
+  button {
+    padding: 9px 16px;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--color-white);
+    cursor: pointer;
+  }
+}
+
+.confirm-danger-btn {
+  border-color: transparent !important;
+  background: var(--color-red) !important;
+
+  &:hover {
+    background: var(--color-red-hover) !important;
+  }
+}
+
+.confirm-primary-btn {
+  border-color: transparent !important;
+  background: linear-gradient(135deg, var(--color-red), var(--color-red-hover)) !important;
+  font-weight: 600;
+}

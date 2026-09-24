@@ -1,0 +1,156 @@
+.audit-log-page {
+  padding: 24px;
+  max-width: 1100px;
+  margin: 0 auto;
+}
+
+.audit-log-header {
+  margin-bottom: 20px;
+
+  h1 {
+    margin: 0 0 4px;
+    font-size: 1.4rem;
+  }
+
+  p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.88rem;
+    max-width: 60ch;
+  }
+}
+
+.audit-log-filters {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-end;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding: 14px;
+  background: var(--color-black-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+  }
+
+  .select,
+  .date-picker {
+    width: 170px;
+  }
+}
+
+.audit-log-clear-btn {
+  padding: 8px 14px;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-white);
+  font-size: 0.82rem;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    border-color: var(--color-red);
+  }
+}
+
+.audit-log-empty {
+  padding: 32px 16px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.audit-log-table {
+  width: 100%;
+  min-width: 760px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+
+  th {
+    padding: 10px 14px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    text-align: left;
+    background: var(--color-black-soft);
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 11px 14px;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+    white-space: nowrap;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  tbody tr:hover {
+    background: var(--color-black-soft);
+  }
+}
+
+.audit-log-td-when {
+  color: var(--color-text-muted);
+}
+
+.audit-log-td-key {
+  font-family: monospace;
+  font-size: 0.82rem;
+}
+
+.audit-log-detail {
+  color: var(--color-text-muted);
+}
+
+.audit-log-action {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--color-black-elevated);
+  color: var(--color-text-muted);
+
+  &--delete,
+  &--rollback,
+  &--reveal {
+    background: rgba(224, 34, 60, 0.12);
+    color: var(--color-red-glow);
+  }
+}
+
+@media (max-width: 480px) {
+  .audit-log-page {
+    padding: 16px;
+  }
+
+  .audit-log-header h1 {
+    font-size: 1.15rem;
+  }
+
+  .audit-log-filters .select,
+  .audit-log-filters .date-picker {
+    width: 140px;
+  }
+}

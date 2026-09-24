@@ -1,0 +1,157 @@
+.date-picker {
+  position: relative;
+  min-width: 0;
+}
+
+.date-picker-trigger {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-black);
+  color: var(--color-white);
+  font-size: 0.85rem;
+  cursor: pointer;
+  text-align: left;
+
+  &[aria-expanded='true'] {
+    border-color: var(--color-red);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-red-glow);
+    outline-offset: 1px;
+  }
+
+  svg {
+    flex-shrink: 0;
+    color: var(--color-text-muted);
+  }
+}
+
+.date-picker-trigger-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+.date-picker-panel {
+  position: fixed;
+  z-index: 20;
+  width: 260px;
+  padding: 12px;
+  background: var(--color-black-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+}
+
+.date-picker-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 10px;
+  font-size: 0.85rem;
+  font-weight: 600;
+
+  button {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 26px;
+    height: 26px;
+    padding: 0;
+    border: none;
+    border-radius: var(--radius);
+    background: transparent;
+    color: var(--color-white);
+    cursor: pointer;
+
+    &:hover {
+      background: var(--color-black-soft);
+    }
+  }
+}
+
+.date-picker-weekdays {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  margin-bottom: 4px;
+
+  span {
+    text-align: center;
+    font-size: 0.7rem;
+    color: var(--color-text-muted);
+  }
+}
+
+.date-picker-grid {
+  display: grid;
+  grid-template-columns: repeat(7, 1fr);
+  gap: 2px;
+}
+
+.date-picker-day {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-white);
+  font-size: 0.82rem;
+  cursor: pointer;
+
+  &:hover:not(&--blank) {
+    background: var(--color-black-soft);
+  }
+
+  &--blank {
+    cursor: default;
+  }
+
+  &:disabled {
+    color: var(--color-text-muted);
+    opacity: 0.35;
+    cursor: not-allowed;
+
+    &:hover {
+      background: transparent;
+    }
+  }
+
+  &--today {
+    color: var(--color-red-glow);
+    font-weight: 700;
+  }
+
+  &--selected {
+    background: var(--color-red);
+    color: var(--color-white);
+  }
+}
+
+.date-picker-clear {
+  width: 100%;
+  margin-top: 10px;
+  padding: 7px;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: transparent;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--color-red);
+    color: var(--color-white);
+  }
+}

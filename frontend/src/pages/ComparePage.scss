@@ -1,0 +1,267 @@
+.compare-page {
+  padding: 24px;
+  max-width: 1000px;
+  margin: 0 auto;
+}
+
+.compare-back-link {
+  display: inline-block;
+  margin-bottom: 12px;
+  color: var(--color-text-muted);
+  text-decoration: none;
+  font-size: 0.85rem;
+
+  &:hover {
+    color: var(--color-white);
+  }
+}
+
+.compare-header {
+  margin-bottom: 20px;
+
+  h1 {
+    margin: 0 0 4px;
+    font-size: 1.4rem;
+  }
+
+  p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.88rem;
+    max-width: 60ch;
+  }
+}
+
+.compare-pickers {
+  display: flex;
+  gap: 16px;
+  margin-bottom: 20px;
+  padding: 16px;
+  background: var(--color-black-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+  flex-wrap: wrap;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    font-size: 0.78rem;
+    color: var(--color-text-muted);
+    flex: 1 1 200px;
+  }
+
+  .select {
+    width: 100%;
+  }
+}
+
+.compare-empty {
+  padding: 24px 16px;
+  text-align: center;
+  color: var(--color-text-muted);
+}
+
+.compare-note {
+  margin: 0 0 12px;
+  padding: 10px 14px;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+  background: var(--color-black-soft);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
+
+.compare-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+
+.compare-search {
+  flex: 1 1 auto;
+  min-width: 200px;
+  max-width: 360px;
+  padding: 8px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-black-soft);
+  color: var(--color-white);
+  font-size: 0.88rem;
+
+  &::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-red-glow);
+    outline-offset: 1px;
+  }
+}
+
+.compare-filter-chips {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 6px;
+}
+
+.compare-chip-filter {
+  padding: 4px 11px;
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--color-text-muted);
+  background: none;
+  border: 1px solid var(--color-border);
+  border-radius: 999px;
+  cursor: pointer;
+  white-space: nowrap;
+
+  &:hover {
+    color: var(--color-white);
+    border-color: var(--color-text-muted);
+  }
+
+  &--active {
+    color: var(--color-white);
+    background: var(--color-black-elevated);
+    border-color: var(--color-red);
+  }
+}
+
+.compare-panel {
+  margin-bottom: 20px;
+
+  h2 {
+    margin: 0 0 10px;
+    font-size: 1rem;
+  }
+}
+
+.table-scroll {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.compare-table {
+  width: 100%;
+  min-width: 600px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+
+  th {
+    padding: 10px 14px;
+    font-size: 0.68rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    text-align: left;
+    background: var(--color-black-soft);
+    border-bottom: 1px solid var(--color-border);
+    white-space: nowrap;
+  }
+
+  td {
+    padding: 10px 14px;
+    border-bottom: 1px solid var(--color-border);
+    vertical-align: middle;
+  }
+
+  tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  // Scoped exception to the red/black palette (CLAUDE.md — Conventions):
+  // green for "added" only, matching the reference implementation. Removed
+  // and changed stay within the existing red palette.
+  tr.compare-row--added td {
+    background: var(--color-success-bg);
+  }
+
+  tr.compare-row--removed td {
+    background: rgba(224, 34, 60, 0.1);
+  }
+
+  tr.compare-row--changed td {
+    background: rgba(224, 34, 60, 0.06);
+  }
+
+  button {
+    padding: 6px 12px;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--color-white);
+    font-size: 0.78rem;
+    cursor: pointer;
+    white-space: nowrap;
+
+    &:hover:not(:disabled) {
+      border-color: var(--color-red);
+    }
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.compare-key {
+  font-family: monospace;
+  font-size: 0.82rem;
+}
+
+.compare-status-chip {
+  display: inline-block;
+  padding: 2px 8px;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  background: var(--color-black-elevated);
+  color: var(--color-red-glow);
+
+  .compare-row--added & {
+    color: var(--color-success);
+  }
+
+  // Matching stays neutral — it's not part of the added/removed/changed
+  // red/green exception (CLAUDE.md — Conventions), just "nothing to flag."
+  .compare-row--matching & {
+    color: var(--color-text-muted);
+  }
+}
+
+.compare-value {
+  color: var(--color-text-muted);
+  word-break: break-all;
+}
+
+.compare-secret {
+  color: var(--color-text-muted);
+  font-style: italic;
+}
+
+@media (max-width: 480px) {
+  .compare-page {
+    padding: 16px;
+  }
+
+  .compare-header h1 {
+    font-size: 1.15rem;
+  }
+
+  .compare-pickers {
+    flex-direction: column;
+  }
+
+  .compare-search {
+    max-width: none;
+  }
+}

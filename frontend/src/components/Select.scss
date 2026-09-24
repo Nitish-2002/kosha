@@ -1,0 +1,118 @@
+.select {
+  position: relative;
+  min-width: 0;
+}
+
+.select-trigger {
+  width: 100%;
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 9px 12px;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-black);
+  color: var(--color-white);
+  font-size: 0.9rem;
+  cursor: pointer;
+  text-align: left;
+
+  &[aria-expanded='true'] {
+    border-color: var(--color-red);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-red-glow);
+    outline-offset: 1px;
+  }
+}
+
+// A flex child won't shrink below its content's natural width by default —
+// without min-width: 0 here, a long value (a full email address, say) just
+// pushes the trigger wider than its container instead of truncating.
+.select-trigger-label {
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+}
+
+// position: fixed with top/left/width set inline from the trigger's real
+// getBoundingClientRect() — escapes any ancestor's overflow clipping (e.g.
+// the credentials/members table wrapper's horizontal-scroll container),
+// unlike position:absolute which was getting cut off by it.
+.select-options {
+  position: fixed;
+  z-index: 20;
+  display: flex;
+  flex-direction: column;
+  padding: 4px;
+  background: var(--color-black-elevated);
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.5);
+}
+
+.select-search {
+  width: 100%;
+  padding: 7px 9px;
+  margin-bottom: 4px;
+  border-radius: var(--radius);
+  border: 1px solid var(--color-border);
+  background: var(--color-black);
+  color: var(--color-white);
+  font-size: 0.85rem;
+
+  &::placeholder {
+    color: var(--color-text-muted);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-red-glow);
+    outline-offset: 1px;
+  }
+}
+
+// Capped and scrollable — with no limit here, a list that grows with real
+// data (every project, every user) just pushes past the viewport instead of
+// staying in one scrollable place.
+.select-options-list {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.select-options-empty {
+  padding: 10px;
+  color: var(--color-text-muted);
+  font-size: 0.85rem;
+  text-align: center;
+}
+
+.select-option {
+  width: 100%;
+  padding: 8px 10px;
+  border: none;
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-white);
+  font-size: 0.88rem;
+  text-align: left;
+  cursor: pointer;
+  overflow: hidden;
+  white-space: nowrap;
+  text-overflow: ellipsis;
+
+  &:hover {
+    background: var(--color-black-soft);
+  }
+
+  &--active {
+    color: var(--color-red-glow);
+  }
+}

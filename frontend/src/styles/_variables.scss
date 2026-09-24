@@ -1,0 +1,31 @@
+// Kosha palette: red and black, per docs/PRD.md#visual-design. Reuse these
+// everywhere — never hardcode a hex value in a component file.
+
+:root {
+  --color-black: #0a0a0a;
+  --color-black-soft: #161616;
+  --color-black-elevated: #202020;
+  --color-border: #2e2e2e;
+
+  --color-red: #e0223c;
+  --color-red-hover: #c81c33;
+  --color-red-muted: #7a2530;
+  --color-red-glow: #ff2d4a;
+  // Translucent red washes for chips, active rows and hover fills.
+  --color-red-tint-subtle: rgba(224, 34, 60, 0.06);
+  --color-red-tint: rgba(224, 34, 60, 0.12);
+  --color-red-tint-strong: rgba(224, 34, 60, 0.25);
+
+  --color-white: #f5f5f5;
+  --color-text-muted: #a8a8a8;
+
+  // Scoped exception (CLAUDE.md — Conventions/Palette): only the environment
+  // compare view's row status uses this, matching the reference
+  // implementation's added/removed/changed coloring. Not used anywhere else.
+  --color-success: #4ade80;
+  --color-success-bg: rgba(74, 222, 128, 0.12);
+
+  --radius: 8px;
+  --radius-lg: 20px;
+  --breakpoint-mobile: 480px;
+}

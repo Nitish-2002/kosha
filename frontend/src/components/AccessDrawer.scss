@@ -1,0 +1,334 @@
+// ---- Access drawer (slide-over) ----
+
+.access-drawer-backdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 90;
+  background: rgba(0, 0, 0, 0.6);
+  backdrop-filter: blur(2px);
+  animation: access-backdrop-in 0.15s ease-out;
+}
+
+.access-drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 91;
+  width: 460px;
+  max-width: 100vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--color-black-elevated);
+  border-left: 1px solid var(--color-border);
+  box-shadow: -24px 0 60px rgba(0, 0, 0, 0.5);
+  animation: access-drawer-in 0.2s ease-out;
+}
+
+@keyframes access-backdrop-in {
+  from {
+    opacity: 0;
+  }
+}
+
+@keyframes access-drawer-in {
+  from {
+    transform: translateX(100%);
+  }
+}
+
+.access-drawer-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 20px 24px;
+  border-bottom: 1px solid var(--color-border);
+
+  h2 {
+    margin: 2px 0 0;
+    font-size: 1.05rem;
+    word-break: break-word;
+  }
+}
+
+.access-drawer-eyebrow {
+  display: block;
+  font-size: 0.7rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: var(--color-red-glow);
+}
+
+.access-drawer-close {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  flex-shrink: 0;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: transparent;
+  color: var(--color-text-muted);
+  cursor: pointer;
+
+  &:hover {
+    color: var(--color-white);
+    border-color: var(--color-red);
+  }
+}
+
+.access-drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.access-drawer-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+
+  h3 {
+    margin: 0;
+    font-size: 0.72rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    color: var(--color-text-muted);
+  }
+
+  &:not(:last-child) {
+    padding-bottom: 18px;
+    border-bottom: 1px solid var(--color-border);
+  }
+}
+
+.access-drawer-empty {
+  padding: 14px;
+  text-align: center;
+  font-size: 0.85rem;
+  color: var(--color-text-muted);
+}
+
+.access-summary-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+}
+
+.access-summary-item {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 2px;
+  width: 100%;
+  padding: 9px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: transparent;
+  text-align: left;
+  cursor: pointer;
+  transition: border-color 0.15s ease;
+
+  &:hover {
+    border-color: var(--color-red);
+  }
+
+  &--active {
+    border-color: var(--color-red);
+    background: var(--color-red-tint);
+  }
+}
+
+.access-summary-project {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--color-white);
+}
+
+.access-summary-detail {
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.access-project-select {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.access-matrix-wrap {
+  overflow-x: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-lg);
+}
+
+.access-matrix {
+  width: 100%;
+  border-collapse: collapse;
+
+  th,
+  td {
+    padding: 10px 14px;
+    text-align: center;
+    white-space: nowrap;
+  }
+
+  thead th {
+    font-size: 0.7rem;
+    font-weight: 700;
+    text-transform: uppercase;
+    letter-spacing: 0.04em;
+    color: var(--color-text-muted);
+    background: var(--color-black-soft);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  tbody th {
+    text-align: left;
+    font-size: 0.87rem;
+    font-weight: 600;
+    background: var(--color-black-soft);
+  }
+
+  tbody tr:not(:last-child) th,
+  tbody tr:not(:last-child) td {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  tbody th,
+  tbody td {
+    border-right: 1px solid var(--color-border);
+  }
+
+  tbody td:last-child {
+    border-right: none;
+  }
+}
+
+.access-matrix-cell {
+  padding: 6px !important;
+}
+
+.access-matrix-toggle {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 30px;
+  height: 30px;
+  padding: 0;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-black);
+  color: var(--color-white);
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background 0.15s ease;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-red);
+  }
+
+  &:disabled {
+    cursor: not-allowed;
+  }
+
+  .access-matrix-cell--granted & {
+    background: var(--color-red);
+    border-color: var(--color-red);
+  }
+
+  // Covered by the row's "All" column, not its own grant — visibly on so it
+  // doesn't read as "not granted", but muted and inert since there's nothing
+  // to toggle here individually (revoke "All" to change it).
+  .access-matrix-cell--implied & {
+    background: transparent;
+    border-color: var(--color-border);
+    border-style: dashed;
+    color: var(--color-red-glow);
+  }
+
+  // Staged, not yet saved — hollow outline rather than the solid fill a real
+  // grant gets, so a glance at the matrix never confuses "about to happen"
+  // with "already true".
+  .access-matrix-cell--pending-grant & {
+    background: transparent;
+    border-color: var(--color-red);
+    border-width: 2px;
+    color: var(--color-red-glow);
+  }
+
+  // Staged for removal — still shows the checkmark (it's still granted for
+  // real, until saved) but faded, so it reads as "on its way out".
+  .access-matrix-cell--pending-revoke & {
+    background: var(--color-red);
+    border-color: var(--color-red);
+    opacity: 0.45;
+  }
+}
+
+.access-matrix-hint {
+  margin: 0;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+
+  strong {
+    color: var(--color-white);
+  }
+}
+
+.access-save-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  background: var(--color-red-tint);
+  border: 1px solid var(--color-red);
+  border-radius: var(--radius);
+  font-size: 0.82rem;
+
+  span {
+    flex: 1;
+  }
+
+  button {
+    padding: 6px 14px;
+    border-radius: var(--radius);
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--color-white);
+    font-size: 0.8rem;
+    cursor: pointer;
+
+    &:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+  }
+}
+
+.access-save-btn {
+  border: none !important;
+  background: linear-gradient(135deg, var(--color-red), var(--color-red-hover)) !important;
+  font-weight: 600;
+}
+
+@media (max-width: 480px) {
+  .access-drawer-header,
+  .access-drawer-body {
+    padding: 16px;
+  }
+}
