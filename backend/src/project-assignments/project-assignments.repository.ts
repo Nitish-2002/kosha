@@ -14,11 +14,29 @@ export class ProjectAssignmentsRepository {
     return this.repo.find({ where: { userId }, order: { createdAt: 'DESC' } });
   }
 
+  findAll(): Promise<ProjectAssignment[]> {
+    return this.repo.find({ order: { createdAt: 'ASC' } });
+  }
+
   findForProject(projectId: string): Promise<ProjectAssignment[]> {
     return this.repo.find({
       where: { projectId },
       order: { createdAt: 'ASC' },
     });
+  }
+
+  async countDistinctUsersByProject(
+    projectIds: string[],
+  ): Promise<Map<string, number>> {
+    if (projectIds.length === 0) return new Map();
+    const rows: { projectId: string; count: string }[] = await this.repo
+      .createQueryBuilder('assignment')
+      .select('assignment.projectId', 'projectId')
+      .addSelect('COUNT(DISTINCT assignment.userId)', 'count')
+      .where('assignment.projectId IN (:...projectIds)', { projectIds })
+      .groupBy('assignment.projectId')
+      .getRawMany();
+    return new Map(rows.map((row) => [row.projectId, Number(row.count)]));
   }
 
   findForUserAndProject(

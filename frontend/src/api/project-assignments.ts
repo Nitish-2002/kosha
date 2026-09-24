@@ -21,6 +21,8 @@ export interface CreateAssignmentInput {
 
 export const listAssignments = (userId: string) => apiGet<AssignmentSummary[]>(`/users/${userId}/assignments`);
 
+export const listAllAssignments = () => apiGet<AssignmentSummary[]>('/assignments');
+
 export const listProjectAssignments = (projectId: string) =>
   apiGet<AssignmentSummary[]>(`/projects/${projectId}/assignments`);
 

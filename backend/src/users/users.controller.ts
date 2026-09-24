@@ -20,6 +20,7 @@ export interface UserSummary {
   email: string;
   role: User['role'];
   status: User['status'];
+  lastLoginAt: Date | null;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -30,6 +31,7 @@ function toSummary(user: User): UserSummary {
     email: user.email,
     role: user.role,
     status: user.status,
+    lastLoginAt: user.lastLoginAt,
     createdAt: user.createdAt,
     updatedAt: user.updatedAt,
   };

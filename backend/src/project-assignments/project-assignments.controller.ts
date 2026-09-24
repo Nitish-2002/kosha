@@ -22,6 +22,13 @@ import { CreateAssignmentDto } from './dto/create-assignment.dto';
 export class ProjectAssignmentsController {
   constructor(private readonly assignmentsService: ProjectAssignmentsService) {}
 
+  // Every assignment, for the Members list's per-person access summary —
+  // one query instead of one per member.
+  @Get('assignments')
+  listAll() {
+    return this.assignmentsService.listAll();
+  }
+
   @Get('users/:userId/assignments')
   listForUser(@Param('userId') userId: string) {
     return this.assignmentsService.listForUser(userId);

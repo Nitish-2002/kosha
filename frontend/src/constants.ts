@@ -19,6 +19,8 @@ export const NOTIFICATION_PANEL_WIDTH = 320;
 // background, so a new one (e.g. a request needing review) shows up without
 // the user having to reload the page or click the bell themselves.
 export const NOTIFICATION_POLL_MS = 30_000;
+// No input for this long counts as idle — the bell stops polling until the next input.
+export const NOTIFICATION_IDLE_MS = 2 * 60_000;
 
 // AuditLogPage: rows fetched per page.
 export const AUDIT_LOG_PAGE_SIZE = 50;

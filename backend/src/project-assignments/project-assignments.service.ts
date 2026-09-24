@@ -44,9 +44,18 @@ export class ProjectAssignmentsService {
     return this.hydrate(rows);
   }
 
+  async listAll(): Promise<AssignmentSummary[]> {
+    return this.hydrate(await this.assignmentsRepository.findAll());
+  }
+
   async listForProject(projectId: string): Promise<AssignmentSummary[]> {
     const rows = await this.assignmentsRepository.findForProject(projectId);
     return this.hydrate(rows);
+  }
+
+  // Admin-only data (who has access) — callers must not pass it to a Member.
+  memberCountsByProject(projectIds: string[]): Promise<Map<string, number>> {
+    return this.assignmentsRepository.countDistinctUsersByProject(projectIds);
   }
 
   async create(

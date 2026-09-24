@@ -5,7 +5,6 @@ import { ProtectedRoute } from './components/ProtectedRoute';
 import { Layout } from './components/Layout';
 import { LoginPage } from './pages/LoginPage';
 import { PendingPage } from './pages/PendingPage';
-import { HomePage } from './pages/HomePage';
 import { ProjectsPage } from './pages/ProjectsPage';
 import { ProjectDetailPage } from './pages/ProjectDetailPage';
 import { CredentialsPage } from './pages/CredentialsPage';
@@ -21,16 +20,8 @@ export function App() {
         <Routes>
           <Route path="/login" element={<LoginPage />} />
           <Route path="/pending-approval" element={<PendingPage />} />
-          <Route
-            path="/"
-            element={
-              <ProtectedRoute>
-                <Layout>
-                  <HomePage />
-                </Layout>
-              </ProtectedRoute>
-            }
-          />
+          {/* Landing page for both roles (login redirects to "/"). */}
+          <Route path="/" element={<Navigate to="/projects" replace />} />
           {/* Open to both roles — ProjectsService/ProjectDetailPage's own API
               calls scope a Member to their ProjectAssignments; there's no
               admin-only gate to apply here anymore. */}

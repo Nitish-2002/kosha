@@ -29,6 +29,20 @@ export class AuditRepository {
     return this.repo.save(this.repo.create(fields));
   }
 
+  // Newest write (anything but a reveal) per project, one row each, in one
+  // query — DISTINCT ON keeps the first row per projectId in createdAt DESC order.
+  latestWritePerProject(projectIds: string[]): Promise<AuditLog[]> {
+    if (projectIds.length === 0) return Promise.resolve([]);
+    return this.repo
+      .createQueryBuilder('audit')
+      .distinctOn(['"audit"."projectId"'])
+      .where('audit.projectId IN (:...projectIds)', { projectIds })
+      .andWhere('audit.action != :reveal', { reveal: 'reveal' })
+      .orderBy('"audit"."projectId"')
+      .addOrderBy('audit.createdAt', 'DESC')
+      .getMany();
+  }
+
   findFiltered(filter: AuditLogFilter): Promise<[AuditLog[], number]> {
     const where: FindOptionsWhere<AuditLog> = {};
     if (filter.projectId) where.projectId = filter.projectId;

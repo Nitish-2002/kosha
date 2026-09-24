@@ -1,5 +1,5 @@
-import { useEffect, useMemo, useState, type FormEvent } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useEffect, useMemo, useRef, useState, type FormEvent } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/useAuth';
 import { useToast } from '../context/useToast';
 import { ApiError } from '../api/client';
@@ -11,9 +11,11 @@ import {
   unarchiveProject,
   type ProjectSummary,
 } from '../api/projects';
+import { environmentColor } from '../lib/environmentColor';
 import { formatTimestamp } from '../lib/formatDate';
 import { fetchMyPendingKeys, pendingKey } from '../lib/pendingRequests';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { Select } from '../components/Select';
 import './ProjectsPage.scss';
 
 type SortKey = 'name' | 'components' | 'environments' | 'updatedAt';
@@ -32,6 +34,10 @@ export function ProjectsPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [sortKey, setSortKey] = useState<SortKey>('updatedAt');
   const [sortDir, setSortDir] = useState<SortDir>('desc');
+  const [pageIndex, setPageIndex] = useState(0);
+  const [rowsPerPage, setRowsPerPage] = useState<number>(PROJECT_PAGE_SIZES[0]);
+  // Which row's "+N environments" popover is open — one at a time.
+  const [openEnvironmentsProjectId, setOpenEnvironmentsProjectId] = useState<string | null>(null);
 
   // A Member's own pending delete requests (Admins delete directly, never request).
   const [myPendingKeys, setMyPendingKeys] = useState<Set<string>>(new Set());
@@ -60,11 +66,17 @@ export function ProjectsPage() {
       if (sortKey === 'name') cmp = a.name.localeCompare(b.name);
       else if (sortKey === 'components') cmp = a.components.length - b.components.length;
       else if (sortKey === 'environments') cmp = a.environmentCount - b.environmentCount;
-      else cmp = new Date(a.updatedAt).getTime() - new Date(b.updatedAt).getTime();
+      else cmp = new Date(lastUpdatedAt(a)).getTime() - new Date(lastUpdatedAt(b)).getTime();
       return sortDir === 'asc' ? cmp : -cmp;
     });
     return sorted;
   }, [projects, search, sortKey, sortDir]);
+
+  // Clamped, so deleting the last row on the last page drops back a page.
+  const pageCount = Math.max(1, Math.ceil(visibleProjects.length / rowsPerPage));
+  const currentPage = Math.min(pageIndex, pageCount - 1);
+  const pageStart = currentPage * rowsPerPage;
+  const pageProjects = visibleProjects.slice(pageStart, pageStart + rowsPerPage);
 
   function toggleSort(key: SortKey): void {
     if (sortKey === key) {
@@ -86,7 +98,7 @@ export function ProjectsPage() {
 
   function toggleSelectAll(): void {
     setSelectedIds((prev) =>
-      prev.size === visibleProjects.length ? new Set() : new Set(visibleProjects.map((p) => p.id)),
+      prev.size === pageProjects.length ? new Set() : new Set(pageProjects.map((project) => project.id)),
     );
   }
 
@@ -123,13 +135,33 @@ export function ProjectsPage() {
       <div className="projects-header">
         <div>
           <h1>Projects</h1>
-          <p>Client and internal projects. Click one to manage its components and environments.</p>
+          {projects.length > 0 && (
+            <p>
+              {projects.length} project{projects.length === 1 ? '' : 's'}
+            </p>
+          )}
         </div>
-        {isAdmin && (
-          <button className="projects-add-btn" onClick={() => setCreating((c) => !c)}>
-            {creating ? 'Close' : '+ New project'}
-          </button>
-        )}
+        <div className="projects-header-actions">
+          {projects.length > 0 && (
+            <label className="projects-search">
+              <SearchIcon />
+              <input
+                aria-label="Search projects"
+                placeholder="Search projects"
+                value={search}
+                onChange={(e) => {
+                  setSearch(e.target.value);
+                  setPageIndex(0);
+                }}
+              />
+            </label>
+          )}
+          {isAdmin && (
+            <button className="projects-add-btn" onClick={() => setCreating((open) => !open)}>
+              {creating ? 'Close' : '+ New project'}
+            </button>
+          )}
+        </div>
       </div>
 
       {isAdmin && creating && (
@@ -140,15 +172,6 @@ export function ProjectsPage() {
             setCreating(false);
             refresh();
           }}
-        />
-      )}
-
-      {projects.length > 0 && (
-        <input
-          className="projects-search"
-          placeholder="Search by name or description…"
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
         />
       )}
 
@@ -163,12 +186,28 @@ export function ProjectsPage() {
 
       {loading ? (
         <p className="projects-empty">Loading…</p>
+      ) : projects.length === 0 ? (
+        <div className="projects-empty-state">
+          <span className="projects-empty-icon" aria-hidden="true">
+            <FolderIcon />
+          </span>
+          <h2>{isAdmin ? 'Create your first project' : 'No projects yet'}</h2>
+          <p>
+            {isAdmin
+              ? "A project groups an application's components and environments. Connect each component to a GitHub file or S3 object and Kosha keeps its variables in one place."
+              : 'An Admin needs to assign you to a project before it shows up here.'}
+          </p>
+          {isAdmin && !creating && (
+            <button className="projects-add-btn" onClick={() => setCreating(true)}>
+              + New project
+            </button>
+          )}
+        </div>
       ) : visibleProjects.length === 0 ? (
-        <p className="projects-empty">
-          {projects.length === 0 ? 'No projects yet. Create one to get started.' : 'No projects match your search.'}
-        </p>
+        <p className="projects-empty">No projects match “{search}”.</p>
       ) : (
-        <div className="table-scroll">
+        <div className="table-card">
+          <div className="table-scroll">
           <table className="projects-table">
             <thead>
               <tr>
@@ -176,26 +215,29 @@ export function ProjectsPage() {
                   <th className="projects-th-checkbox">
                     <input
                       type="checkbox"
-                      checked={selectedIds.size > 0 && selectedIds.size === visibleProjects.length}
+                      checked={selectedIds.size > 0 && selectedIds.size === pageProjects.length}
                       onChange={toggleSelectAll}
                       aria-label="Select all projects"
                     />
                   </th>
                 )}
-                <SortableHeader label="Project Name" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
-                <th>Description</th>
-                <SortableHeader label="Components" sortKey="components" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Project" sortKey="name" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
                 <SortableHeader label="Environments" sortKey="environments" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
-                <SortableHeader label="Last Updated" sortKey="updatedAt" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                <SortableHeader label="Components" sortKey="components" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
+                {isAdmin && <th>Members</th>}
+                <SortableHeader label="Last updated" sortKey="updatedAt" activeKey={sortKey} dir={sortDir} onSort={toggleSort} />
                 <th aria-label="Actions" />
               </tr>
             </thead>
             <tbody>
-              {visibleProjects.map((project) => (
+              {pageProjects.map((project) => (
                 <ProjectTableRow
                   key={project.id}
                   project={project}
-                  environmentCount={project.environmentCount}
+                  environmentsOpen={openEnvironmentsProjectId === project.id}
+                  onToggleEnvironments={() =>
+                    setOpenEnvironmentsProjectId((current) => (current === project.id ? null : project.id))
+                  }
                   selected={selectedIds.has(project.id)}
                   isAdmin={isAdmin}
                   deletePending={myPendingKeys.has(pendingKey.project(project.id))}
@@ -207,6 +249,45 @@ export function ProjectsPage() {
               ))}
             </tbody>
           </table>
+          </div>
+          <div className="projects-pagination">
+            <div className="projects-pagination-info">
+              <span>
+                Showing {pageStart + 1}–{pageStart + pageProjects.length} of {visibleProjects.length} projects
+              </span>
+              <label>
+                Rows per page
+                <Select
+                  value={String(rowsPerPage)}
+                  onChange={(value) => {
+                    setRowsPerPage(Number(value));
+                    setPageIndex(0);
+                  }}
+                  options={PROJECT_PAGE_SIZES.map((size) => ({ value: String(size), label: String(size) }))}
+                />
+              </label>
+            </div>
+            {pageCount > 1 && (
+              <nav className="projects-pagination-pages" aria-label="Pagination">
+                <button disabled={currentPage === 0} onClick={() => setPageIndex(currentPage - 1)}>
+                  Previous
+                </button>
+                {Array.from({ length: pageCount }, (_, pageNumber) => (
+                  <button
+                    key={pageNumber}
+                    className={pageNumber === currentPage ? 'projects-page-btn--current' : undefined}
+                    aria-current={pageNumber === currentPage ? 'page' : undefined}
+                    onClick={() => setPageIndex(pageNumber)}
+                  >
+                    {pageNumber + 1}
+                  </button>
+                ))}
+                <button disabled={currentPage >= pageCount - 1} onClick={() => setPageIndex(currentPage + 1)}>
+                  Next
+                </button>
+              </nav>
+            )}
+          </div>
         </div>
       )}
 
@@ -318,9 +399,21 @@ function ProjectForm({ onCancel, onSaved }: { onCancel: () => void; onSaved: (me
   );
 }
 
+const PROJECT_PAGE_SIZES = [10, 25, 50];
+
+// Latest audited change when the API provides it (Admins), else the project
+// row's own updatedAt (renames/archives only).
+function lastUpdatedAt(project: ProjectSummary): string {
+  return project.lastActivity?.at ?? project.updatedAt;
+}
+
+// Chips shown inline before collapsing the rest into a "+N" popover.
+const VISIBLE_ENVIRONMENT_CHIPS = 3;
+
 function ProjectTableRow({
   project,
-  environmentCount,
+  environmentsOpen,
+  onToggleEnvironments,
   selected,
   isAdmin,
   deletePending,
@@ -330,7 +423,8 @@ function ProjectTableRow({
   onRequestDelete,
 }: {
   project: ProjectSummary;
-  environmentCount: number;
+  environmentsOpen: boolean;
+  onToggleEnvironments: () => void;
   selected: boolean;
   isAdmin: boolean;
   deletePending: boolean;
@@ -342,6 +436,37 @@ function ProjectTableRow({
   const { showToast } = useToast();
   const [busy, setBusy] = useState(false);
   const isArchived = project.archivedAt !== null;
+  // Viewport coordinates for the "+N" popover. It's position: fixed because
+  // the table sits in a horizontal-scroll container, which would otherwise
+  // clip it (overflow-x: auto clips vertically too).
+  const [popoverPosition, setPopoverPosition] = useState<{ top: number; left: number } | null>(null);
+  const popoverRef = useRef<HTMLDivElement>(null);
+
+  // A fixed popover doesn't follow its button, so close it when the page
+  // scrolls or resizes — but not when the popover's own list scrolls.
+  useEffect(() => {
+    if (!environmentsOpen) return;
+    function closeOnPageScroll(event: Event): void {
+      if (popoverRef.current?.contains(event.target as Node)) return;
+      onToggleEnvironments();
+    }
+    window.addEventListener('scroll', closeOnPageScroll, { capture: true });
+    window.addEventListener('resize', onToggleEnvironments);
+    return () => {
+      window.removeEventListener('scroll', closeOnPageScroll, { capture: true });
+      window.removeEventListener('resize', onToggleEnvironments);
+    };
+  }, [environmentsOpen, onToggleEnvironments]);
+
+  function openEnvironments(button: HTMLElement): void {
+    const buttonRect = button.getBoundingClientRect();
+    const popoverWidth = 280;
+    setPopoverPosition({
+      top: buttonRect.bottom + 8,
+      left: Math.max(8, Math.min(buttonRect.left, window.innerWidth - popoverWidth - 8)),
+    });
+    onToggleEnvironments();
+  }
 
   async function handleArchiveToggle(): Promise<void> {
     setBusy(true);
@@ -369,13 +494,79 @@ function ProjectTableRow({
         </td>
       )}
       <td className="projects-td-name">
-        {project.name}
-        {isArchived && <span className="project-archived-badge">Archived</span>}
+        <span className="projects-name">
+          {project.name}
+          {isArchived && <span className="project-archived-badge">Archived</span>}
+        </span>
+        {project.description ? (
+          <span className="projects-description">{project.description}</span>
+        ) : (
+          <span className="projects-description projects-description--empty">No description</span>
+        )}
       </td>
-      <td className="projects-td-description">{project.description || '—'}</td>
-      <td>{project.components.length}</td>
-      <td>{environmentCount}</td>
-      <td className="projects-td-updated">{formatTimestamp(project.updatedAt)}</td>
+      <td className="projects-td-environments" onClick={(e) => e.stopPropagation()}>
+        {project.environments.length === 0 ? (
+          <span className="projects-muted">—</span>
+        ) : (
+          <div className="projects-env-chips">
+            {project.environments.slice(0, VISIBLE_ENVIRONMENT_CHIPS).map((environment, environmentIndex) => (
+              <Link
+                key={environment.id}
+                to={`/projects/${project.id}/environments/${environment.id}`}
+                className="projects-env-chip"
+              >
+                <span className="projects-env-dot" style={{ background: environmentColor(environmentIndex) }} aria-hidden="true" />
+                {environment.name}
+              </Link>
+            ))}
+            {project.environments.length > VISIBLE_ENVIRONMENT_CHIPS && (
+              <button
+                className="projects-env-more"
+                aria-expanded={environmentsOpen}
+                aria-label={`Show all ${project.environments.length} environments`}
+                onClick={(e) => (environmentsOpen ? onToggleEnvironments() : openEnvironments(e.currentTarget))}
+              >
+                +{project.environments.length - VISIBLE_ENVIRONMENT_CHIPS}
+              </button>
+            )}
+            {environmentsOpen && popoverPosition && (
+              <div
+                ref={popoverRef}
+                className="projects-env-popover"
+                role="dialog"
+                aria-label="All environments"
+                style={{ top: popoverPosition.top, left: popoverPosition.left }}
+              >
+                <div className="projects-env-popover-header">
+                  <span>{project.environments.length} environments</span>
+                  <button className="icon-btn" aria-label="Close" onClick={onToggleEnvironments}>
+                    <CloseIcon />
+                  </button>
+                </div>
+                <ul>
+                  {project.environments.map((environment, environmentIndex) => (
+                    <li key={environment.id}>
+                      <Link to={`/projects/${project.id}/environments/${environment.id}`}>
+                        <span className="projects-env-dot" style={{ background: environmentColor(environmentIndex) }} aria-hidden="true" />
+                        <span className="projects-env-popover-name">{environment.name}</span>
+                        <ChevronRightIcon />
+                      </Link>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
+      </td>
+      <td className="projects-td-number">{project.components.length}</td>
+      {isAdmin && <td className="projects-td-number">{project.memberCount ?? 0}</td>}
+      <td className="projects-td-updated">
+        {formatTimestamp(lastUpdatedAt(project))}
+        {project.lastActivity?.byEmail && (
+          <span className="projects-updated-by">{project.lastActivity.byEmail.split('@')[0]}</span>
+        )}
+      </td>
       <td className="projects-td-actions" onClick={(e) => e.stopPropagation()}>
         {isAdmin && (
           <button
@@ -401,8 +592,49 @@ function ProjectTableRow({
             <DeleteIcon />
           </button>
         )}
+        <button className="icon-btn" aria-label={`Open ${project.name}`} title="Open" onClick={onOpen}>
+          <ChevronRightIcon />
+        </button>
       </td>
     </tr>
+  );
+}
+
+function SearchIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <circle cx="11" cy="11" r="7" stroke="currentColor" strokeWidth="2" />
+      <path d="M21 21l-4.3-4.3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChevronRightIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M9 6l6 6-6 6" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />
+    </svg>
+  );
+}
+
+function CloseIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M6 6l12 12M18 6L6 18" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function FolderIcon() {
+  return (
+    <svg width="30" height="30" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d="M3 7a2 2 0 0 1 2-2h4l2 2h8a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2V7z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+      />
+    </svg>
   );
 }
 

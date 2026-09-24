@@ -43,8 +43,14 @@ export class UsersRepository {
     userId: string,
     refreshTokenId: string | null,
   ): Promise<void> {
+    // A new session is a sign-in; clearing it (logout, deactivation) is not.
     return this.repo
-      .update({ id: userId }, { currentRefreshTokenId: refreshTokenId })
+      .update(
+        { id: userId },
+        refreshTokenId
+          ? { currentRefreshTokenId: refreshTokenId, lastLoginAt: new Date() }
+          : { currentRefreshTokenId: null },
+      )
       .then(() => undefined);
   }
 }

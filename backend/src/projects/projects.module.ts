@@ -10,7 +10,7 @@ import { ProjectsController } from './projects.controller';
 import { ProjectsService } from './projects.service';
 import { ProjectsRepository } from './projects.repository';
 import { ProjectComponentsRepository } from './project-components.repository';
-import { EnvironmentCountLookupRepository } from './environment-count-lookup.repository';
+import { ProjectEnvironmentLookupRepository } from './project-environment-lookup.repository';
 
 @Module({
   imports: [
@@ -26,7 +26,7 @@ import { EnvironmentCountLookupRepository } from './environment-count-lookup.rep
     ProjectsService,
     ProjectsRepository,
     ProjectComponentsRepository,
-    EnvironmentCountLookupRepository,
+    ProjectEnvironmentLookupRepository,
   ],
   controllers: [ProjectsController],
   // Repositories exported too: Environments/Variables need plain

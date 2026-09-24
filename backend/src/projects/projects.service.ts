@@ -12,7 +12,8 @@ import { Project } from './project.entity';
 import { ProjectComponent } from './project-component.entity';
 import { ProjectsRepository } from './projects.repository';
 import { ProjectComponentsRepository } from './project-components.repository';
-import { EnvironmentCountLookupRepository } from './environment-count-lookup.repository';
+import { ProjectEnvironmentLookupRepository } from './project-environment-lookup.repository';
+import { Environment } from '../environments/environment.entity';
 import { CreateProjectDto } from './dto/create-project.dto';
 import { UpdateProjectDto } from './dto/update-project.dto';
 import { CreateComponentDto } from './dto/create-component.dto';
@@ -33,10 +34,17 @@ export interface ProjectSummary {
   createdAt: Date;
   updatedAt: Date;
   components: { id: string; name: string; createdAt: Date }[];
-  // Computed here (one grouped query for the whole list) instead of the
-  // frontend calling GET .../environments per project just to show a count —
-  // see environment-count-lookup.repository.ts.
+  // Loaded in one query for the whole list (see
+  // project-environment-lookup.repository.ts), scoped to a Member's
+  // assignments like components are.
+  environments: { id: string; name: string }[];
   environmentCount: number;
+  // Distinct Members assigned to the project. Admin-only — null for a
+  // Member, who must not learn who else has access (CLAUDE.md #7).
+  memberCount: number | null;
+  // Latest write in the audit log (who + when). Admin-only and list-only —
+  // null for a Member (it names another user) and outside findAll().
+  lastActivity: { at: Date; byEmail: string | null } | null;
 }
 
 export type DeleteOrRequestResult =
@@ -47,7 +55,7 @@ export class ProjectsService {
   constructor(
     private readonly projectsRepository: ProjectsRepository,
     private readonly componentsRepository: ProjectComponentsRepository,
-    private readonly environmentCounts: EnvironmentCountLookupRepository,
+    private readonly environmentLookup: ProjectEnvironmentLookupRepository,
     private readonly audit: AuditService,
     private readonly assignments: ProjectAssignmentsService,
     private readonly requests: RequestsService,
@@ -69,20 +77,23 @@ export class ProjectsService {
             ...(await this.assignments.assignedProjectIds(requester.id)),
           ]);
     if (projects.length === 0) return [];
-    const allComponents =
-      await this.componentsRepository.findAllOrderedByCreatedAt();
+    const projectIds = projects.map((project) => project.id);
+    const [allComponents, allEnvironments] = await Promise.all([
+      this.componentsRepository.findAllOrderedByCreatedAt(),
+      this.environmentLookup.findByProjectIds(projectIds),
+    ]);
 
     if (requester.role === 'admin') {
-      const environmentCounts = await this.environmentCounts.countByProjectIds(
-        projects.map((p) => p.id),
-      );
+      const [memberCounts, latestWrites] = await Promise.all([
+        this.assignments.memberCountsByProject(projectIds),
+        this.audit.latestWriteByProject(projectIds),
+      ]);
       return projects.map((project) =>
-        this.toSummary(
-          project,
-          allComponents,
-          null,
-          environmentCounts.get(project.id) ?? 0,
-        ),
+        this.toSummary(project, allComponents, null, {
+          environments: allEnvironments,
+          memberCount: memberCounts.get(project.id) ?? 0,
+          lastActivity: latestWrites.get(project.id) ?? null,
+        }),
       );
     }
 
@@ -90,12 +101,12 @@ export class ProjectsService {
       projects.map(async (project) => {
         const { environmentIds, componentScope } =
           await this.assignments.projectScope(requester.id, project.id);
-        return this.toSummary(
-          project,
-          allComponents,
-          componentScope,
-          environmentIds.size,
-        );
+        return this.toSummary(project, allComponents, componentScope, {
+          environments: allEnvironments.filter((environment) =>
+            environmentIds.has(environment.id),
+          ),
+          memberCount: null,
+        });
       }),
     );
   }
@@ -130,7 +141,10 @@ export class ProjectsService {
       projectNameSnapshot: saved.name,
       metadata: { projectId: saved.id, name: saved.name },
     });
-    return this.toSummary(saved, []);
+    return this.toSummary(saved, [], null, {
+      environments: [],
+      memberCount: 0,
+    });
   }
 
   async update(
@@ -332,31 +346,41 @@ export class ProjectsService {
     id: string,
     requester?: RequestUser,
   ): Promise<ProjectSummary> {
-    const [project, components] = await Promise.all([
+    const [project, components, environments] = await Promise.all([
       this.findOrFail(id),
       this.componentsRepository.findByProject(id),
+      this.environmentLookup.findByProjectIds([id]),
     ]);
     if (requester && requester.role !== 'admin') {
       const { environmentIds, componentScope } =
         await this.assignments.projectScope(requester.id, id);
-      return this.toSummary(
-        project,
-        components,
-        componentScope,
-        environmentIds.size,
-      );
+      return this.toSummary(project, components, componentScope, {
+        environments: environments.filter((environment) =>
+          environmentIds.has(environment.id),
+        ),
+        memberCount: null,
+      });
     }
-    const environmentCount =
-      (await this.environmentCounts.countByProjectIds([id])).get(id) ?? 0;
-    return this.toSummary(project, components, null, environmentCount);
+    const memberCounts = await this.assignments.memberCountsByProject([id]);
+    return this.toSummary(project, components, null, {
+      environments,
+      memberCount: memberCounts.get(id) ?? 0,
+    });
   }
 
   private toSummary(
     project: Project,
     allComponents: ProjectComponent[],
-    scope: { all: boolean; componentIds: Set<string> } | null = null,
-    environmentCount = 0,
+    scope: { all: boolean; componentIds: Set<string> } | null,
+    extras: {
+      environments: Environment[];
+      memberCount: number | null;
+      lastActivity?: { at: Date; byEmail: string | null } | null;
+    },
   ): ProjectSummary {
+    const projectEnvironments = extras.environments
+      .filter((environment) => environment.projectId === project.id)
+      .map((environment) => ({ id: environment.id, name: environment.name }));
     const projectComponents = allComponents.filter(
       (component) => component.projectId === project.id,
     );
@@ -378,7 +402,10 @@ export class ProjectsService {
         name: component.name,
         createdAt: component.createdAt,
       })),
-      environmentCount,
+      environments: projectEnvironments,
+      environmentCount: projectEnvironments.length,
+      memberCount: extras.memberCount,
+      lastActivity: extras.lastActivity ?? null,
     };
   }
 }

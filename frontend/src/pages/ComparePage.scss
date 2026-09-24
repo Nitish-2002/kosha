@@ -1,58 +1,54 @@
+// Status colors: the one scoped exception to the red/black palette (CLAUDE.md
+// — Conventions) — success-green for "only in B" (added), red for "only in A"
+// (removed) and changed, muted for matches.
+
 .compare-page {
-  padding: 24px;
-  max-width: 1000px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  max-width: 1280px;
   margin: 0 auto;
-}
-
-.compare-back-link {
-  display: inline-block;
-  margin-bottom: 12px;
-  color: var(--color-text-muted);
-  text-decoration: none;
-  font-size: 0.85rem;
-
-  &:hover {
-    color: var(--color-white);
-  }
+  padding: 28px 24px 40px;
 }
 
 .compare-header {
-  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
 
   h1 {
-    margin: 0 0 4px;
-    font-size: 1.4rem;
+    margin: 0;
+    font-size: 1.9rem;
+    font-weight: 600;
+    letter-spacing: -0.02em;
   }
 
   p {
     margin: 0;
     color: var(--color-text-muted);
-    font-size: 0.88rem;
-    max-width: 60ch;
+    font-size: 0.9rem;
   }
 }
 
-.compare-pickers {
+.compare-breadcrumb {
   display: flex;
-  gap: 16px;
-  margin-bottom: 20px;
-  padding: 16px;
-  background: var(--color-black-soft);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
   flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
 
-  label {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-    font-size: 0.78rem;
+  a {
     color: var(--color-text-muted);
-    flex: 1 1 200px;
+    text-decoration: none;
+
+    &:hover {
+      color: var(--color-white);
+    }
   }
 
-  .select {
-    width: 100%;
+  span:last-child {
+    color: var(--color-white);
   }
 }
 
@@ -63,7 +59,7 @@
 }
 
 .compare-note {
-  margin: 0 0 12px;
+  margin: 0;
   padding: 10px 14px;
   font-size: 0.82rem;
   color: var(--color-text-muted);
@@ -72,196 +68,707 @@
   border-radius: var(--radius);
 }
 
+.compare-muted {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  text-transform: uppercase;
+}
+
+// ---- A ⇄ B pickers ----
+
+.compare-pickers {
+  display: flex;
+  align-items: flex-end;
+  gap: 12px;
+  padding: 18px 20px;
+  background: var(--color-black-soft);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+
+  label {
+    display: flex;
+    flex: 1 1 0;
+    flex-direction: column;
+    gap: 6px;
+    min-width: 0;
+
+    > span {
+      font-size: 0.72rem;
+      font-weight: 600;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      color: var(--color-text-muted);
+    }
+  }
+
+  .select-trigger {
+    height: 44px;
+    border-radius: 10px;
+    text-transform: capitalize;
+  }
+}
+
+.compare-swap {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-black-elevated);
+  color: var(--color-white);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--color-red);
+  }
+}
+
+// ---- Stat cards (double as the status filter) ----
+
+.compare-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.compare-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+  padding: 14px 16px;
+  border-radius: 12px;
+  border: 1px solid var(--color-border);
+  background: var(--color-black-soft);
+  color: var(--color-white);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--color-text-muted);
+  }
+
+  &--active,
+  &--active:hover {
+    border-color: var(--color-red);
+    background: var(--color-red-tint);
+  }
+}
+
+.compare-stat-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  overflow: hidden;
+  font-size: 0.82rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: var(--color-text-muted);
+  text-transform: capitalize;
+}
+
+.compare-stat-count {
+  font-size: 1.6rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+
+.compare-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+
+  .compare-stat--changed &,
+  .compare-stat--onlyA & {
+    background: var(--color-red);
+  }
+
+  .compare-stat--onlyB & {
+    background: var(--color-success);
+  }
+}
+
+// ---- Toolbars ----
+
 .compare-toolbar {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
   gap: 12px;
-  margin-bottom: 16px;
 }
 
-.compare-search {
-  flex: 1 1 auto;
-  min-width: 200px;
-  max-width: 360px;
-  padding: 8px 12px;
-  border-radius: var(--radius);
-  border: 1px solid var(--color-border);
-  background: var(--color-black-soft);
-  color: var(--color-white);
-  font-size: 0.88rem;
-
-  &::placeholder {
-    color: var(--color-text-muted);
-  }
-
-  &:focus-visible {
-    outline: 2px solid var(--color-red-glow);
-    outline-offset: 1px;
-  }
-}
-
-.compare-filter-chips {
+.compare-toolbar-actions {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
-  gap: 6px;
+  gap: 10px;
+  margin-left: auto;
 }
 
-.compare-chip-filter {
-  padding: 4px 11px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  background: none;
-  border: 1px solid var(--color-border);
-  border-radius: 999px;
-  cursor: pointer;
-  white-space: nowrap;
+.compare-search {
+  position: relative;
+  display: block;
+  flex: 1 1 260px;
+  max-width: 400px;
 
-  &:hover {
-    color: var(--color-white);
-    border-color: var(--color-text-muted);
-  }
-
-  &--active {
-    color: var(--color-white);
-    background: var(--color-black-elevated);
-    border-color: var(--color-red);
-  }
-}
-
-.compare-panel {
-  margin-bottom: 20px;
-
-  h2 {
-    margin: 0 0 10px;
-    font-size: 1rem;
-  }
-}
-
-.table-scroll {
-  overflow-x: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-}
-
-.compare-table {
-  width: 100%;
-  min-width: 600px;
-  border-collapse: collapse;
-  font-size: 0.85rem;
-
-  th {
-    padding: 10px 14px;
-    font-size: 0.68rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+  svg {
+    position: absolute;
+    top: 50%;
+    left: 14px;
+    transform: translateY(-50%);
     color: var(--color-text-muted);
-    text-align: left;
+    pointer-events: none;
+  }
+
+  input {
+    width: 100%;
+    height: 42px;
+    padding: 0 14px 0 40px;
+    border-radius: 10px;
+    border: 1px solid var(--color-border);
     background: var(--color-black-soft);
-    border-bottom: 1px solid var(--color-border);
-    white-space: nowrap;
+    color: var(--color-white);
+    font-size: 0.9rem;
+
+    &::placeholder {
+      color: var(--color-text-muted);
+    }
+
+    &:focus-visible {
+      outline: 2px solid var(--color-red-glow);
+      outline-offset: 1px;
+    }
+  }
+}
+
+// "Hide matching keys" — a button styled as a switch (aria-pressed carries state).
+.compare-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  height: 42px;
+  padding: 0 14px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-black-soft);
+  color: var(--color-white);
+  font: inherit;
+  font-size: 0.88rem;
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.compare-switch {
+  position: relative;
+  width: 32px;
+  height: 18px;
+  border-radius: 999px;
+  background: var(--color-border);
+  transition: background 0.15s ease;
+
+  &::after {
+    content: '';
+    position: absolute;
+    top: 2px;
+    left: 2px;
+    width: 14px;
+    height: 14px;
+    border-radius: 50%;
+    background: var(--color-white);
+    transition: left 0.15s ease;
   }
 
-  td {
-    padding: 10px 14px;
-    border-bottom: 1px solid var(--color-border);
-    vertical-align: middle;
+  [aria-pressed='true'] > & {
+    background: var(--color-red);
+
+    &::after {
+      left: 16px;
+    }
+  }
+}
+
+.compare-selection-count {
+  font-size: 0.85rem;
+  color: var(--color-white);
+}
+
+.compare-primary-btn {
+  height: 42px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 0;
+  background: var(--color-red);
+  color: var(--color-white);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--color-red-hover);
   }
 
-  tbody tr:last-child td {
-    border-bottom: none;
+  &:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
   }
+}
 
-  // Scoped exception to the red/black palette (CLAUDE.md — Conventions):
-  // green for "added" only, matching the reference implementation. Removed
-  // and changed stay within the existing red palette.
-  tr.compare-row--added td {
-    background: var(--color-success-bg);
-  }
+.compare-component-select {
+  width: 300px;
+  max-width: 100%;
 
-  tr.compare-row--removed td {
-    background: rgba(224, 34, 60, 0.1);
+  .select-trigger {
+    height: 42px;
+    border-radius: 10px;
+    background: var(--color-black-soft);
   }
+}
 
-  tr.compare-row--changed td {
-    background: rgba(224, 34, 60, 0.06);
-  }
+.compare-view-switch {
+  display: flex;
+  gap: 4px;
+  margin-left: auto;
+  padding: 4px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-black-soft);
 
   button {
-    padding: 6px 12px;
-    border-radius: var(--radius);
-    border: 1px solid var(--color-border);
+    height: 34px;
+    padding: 0 14px;
+    border: 0;
+    border-radius: 7px;
     background: transparent;
-    color: var(--color-white);
-    font-size: 0.78rem;
-    cursor: pointer;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-weight: 500;
     white-space: nowrap;
+    cursor: pointer;
 
-    &:hover:not(:disabled) {
-      border-color: var(--color-red);
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+    &[aria-pressed='true'] {
+      background: var(--color-red-tint);
+      color: var(--color-red-glow);
+      box-shadow: inset 0 0 0 1px var(--color-red);
     }
   }
 }
 
-.compare-key {
-  font-family: monospace;
-  font-size: 0.82rem;
+// ---- Result cards (div grids rather than tables, so rows can restack into
+// cards on phones) ----
+
+.compare-card {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-black-soft);
 }
 
-.compare-status-chip {
-  display: inline-block;
-  padding: 2px 8px;
-  border-radius: 999px;
-  font-size: 0.68rem;
-  font-weight: 700;
+.compare-summary-row--head,
+.compare-key-row--head {
+  font-size: 0.7rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  letter-spacing: 0.03em;
-  background: var(--color-black-elevated);
-  color: var(--color-red-glow);
+  color: var(--color-text-muted);
+}
 
-  .compare-row--added & {
+.compare-summary-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 90px 90px 140px 140px 80px 130px;
+  column-gap: 16px;
+  align-items: center;
+  min-height: 52px;
+  padding: 6px 20px;
+
+  & + & {
+    border-top: 1px solid var(--color-border);
+  }
+
+  > span {
+    min-width: 0;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+}
+
+.compare-summary-name {
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+.compare-summary-count {
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+
+  &--changed,
+  &--onlyA {
+    color: var(--color-red-glow);
+  }
+
+  &--onlyB {
     color: var(--color-success);
   }
 
-  // Matching stays neutral — it's not part of the added/removed/changed
-  // red/green exception (CLAUDE.md — Conventions), just "nothing to flag."
-  .compare-row--matching & {
+  &--match,
+  &--zero {
+    color: var(--color-text-muted);
+    font-weight: 400;
+  }
+}
+
+.compare-summary-action {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.compare-key-row {
+  display: grid;
+  grid-template-columns: 24px minmax(160px, 1.1fr) 150px minmax(0, 1fr) minmax(0, 1fr) 170px;
+  column-gap: 20px;
+  align-items: center;
+  min-height: 48px;
+  padding: 8px 20px;
+  border-top: 1px solid var(--color-border);
+
+  &--head {
+    min-height: 42px;
+    border-top: 0;
+  }
+
+  &--selected {
+    background: var(--color-red-tint);
+  }
+}
+
+.compare-group-toggle {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 48px;
+  padding: 0 20px;
+  border: 0;
+  border-top: 1px solid var(--color-border);
+  background: var(--color-black-elevated);
+  color: var(--color-white);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  svg {
+    flex-shrink: 0;
     color: var(--color-text-muted);
   }
 }
 
-.compare-value {
+.compare-group-name {
+  min-width: 150px;
+  font-weight: 600;
+}
+
+.compare-group-summary {
+  flex-grow: 1;
+  font-size: 0.8rem;
   color: var(--color-text-muted);
-  word-break: break-all;
+}
+
+.compare-group-hint {
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: var(--color-red-glow);
+}
+
+.compare-check {
+  display: flex;
+}
+
+.compare-key {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  min-width: 0;
+}
+
+.compare-key-name {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  max-width: 100%;
+  font-family: ui-monospace, monospace;
+  font-size: 0.82rem;
+  font-weight: 500;
+  overflow-wrap: anywhere;
+}
+
+.compare-lock {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-red-glow);
+}
+
+.compare-pill {
+  display: inline-block;
+  padding: 3px 10px;
+  border-radius: 999px;
+  border: 1px solid var(--color-border);
+  background: var(--color-black-elevated);
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  font-weight: 600;
+  white-space: nowrap;
+  text-transform: capitalize;
+
+  &--changed,
+  &--onlyA {
+    border-color: var(--color-red-muted);
+    background: var(--color-red-tint);
+    color: var(--color-red-glow);
+  }
+
+  &--onlyB {
+    border-color: var(--color-success);
+    background: var(--color-success-bg);
+    color: var(--color-success);
+  }
+
+  // Shown under the key only on tablet/phone (see media queries).
+  &--inline {
+    display: none;
+  }
+}
+
+.compare-value-cell {
+  min-width: 0;
+  font-family: ui-monospace, monospace;
+  font-size: 0.82rem;
+  overflow-wrap: anywhere;
+}
+
+// Env-name caption before each value — phone cards only.
+.compare-value-label {
+  display: none;
+}
+
+.compare-value {
+  color: var(--color-white);
+}
+
+.compare-diff-mark {
+  padding: 0 2px;
+  border-radius: 3px;
+  background: var(--color-red-tint-strong);
+  color: var(--color-white);
+}
+
+.compare-not-set {
+  padding: 2px 8px;
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  font-family: system-ui, sans-serif;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
 }
 
 .compare-secret {
+  font-family: system-ui, sans-serif;
+  font-size: 0.8rem;
   color: var(--color-text-muted);
-  font-style: italic;
 }
 
-@media (max-width: 480px) {
+.compare-align-right {
+  display: flex;
+  justify-content: flex-end;
+}
+
+.compare-add-btn {
+  height: 32px;
+  padding: 0 12px;
+  border-radius: 8px;
+  border: 1px solid var(--color-red-muted);
+  background: var(--color-black-elevated);
+  color: var(--color-red-glow);
+  font: inherit;
+  font-size: 0.8rem;
+  font-weight: 500;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &--onlyB {
+    border-color: var(--color-success);
+    color: var(--color-success);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+}
+
+// ---- Tablet: status moves under the key; stat cards 3 per row ----
+@media (max-width: 1024px) {
+  .compare-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+
+  .compare-key-row {
+    grid-template-columns: 24px minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1fr) auto;
+  }
+
+  .compare-status-column {
+    display: none;
+  }
+
+  .compare-pill--inline {
+    display: inline-block;
+  }
+
+  .compare-summary-row {
+    grid-template-columns: minmax(0, 1fr) repeat(4, 70px) auto;
+
+    > span:nth-child(2) {
+      display: none;
+    }
+  }
+}
+
+// ---- Phone: stacked pickers, scrolling stat chips, card rows ----
+@media (max-width: 640px) {
   .compare-page {
     padding: 16px;
+    gap: 16px;
   }
 
   .compare-header h1 {
-    font-size: 1.15rem;
+    font-size: 1.4rem;
   }
 
   .compare-pickers {
     flex-direction: column;
+    align-items: stretch;
+    padding: 14px;
+
+    .compare-swap {
+      align-self: center;
+      transform: rotate(90deg);
+    }
   }
 
-  .compare-search {
+  .compare-stats {
+    display: flex;
+    margin: 0 -16px;
+    padding: 0 16px;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .compare-stat {
+    flex-direction: row;
+    flex-shrink: 0;
+    align-items: center;
+    padding: 8px 12px;
+    border-radius: 999px;
+  }
+
+  .compare-stat-count {
+    font-size: 0.9rem;
+  }
+
+  .compare-search,
+  .compare-toggle,
+  .compare-component-select,
+  .compare-toolbar-actions {
+    flex: 1 1 100%;
     max-width: none;
+  }
+
+  .compare-toggle {
+    justify-content: space-between;
+    flex-direction: row-reverse;
+  }
+
+  .compare-view-switch {
+    margin-left: 0;
+  }
+
+  .compare-summary-row--head,
+  .compare-key-row--head {
+    display: none;
+  }
+
+  .compare-summary-row {
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    row-gap: 8px;
+    padding: 12px 14px;
+
+    .compare-summary-name,
+    .compare-summary-action {
+      grid-column: 1 / -1;
+    }
+
+    .compare-summary-action {
+      justify-content: flex-start;
+    }
+  }
+
+  // Each count gets its status caption on phones (no header row).
+  .compare-summary-count::before {
+    content: attr(data-label);
+    display: block;
+    overflow: hidden;
+    font-size: 0.68rem;
+    font-weight: 400;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+    color: var(--color-text-muted);
+    text-transform: capitalize;
+  }
+
+  .compare-key-row {
+    grid-template-columns: 24px minmax(0, 1fr);
+    row-gap: 8px;
+    padding: 12px 14px;
+
+    .compare-value-cell,
+    .compare-align-right {
+      grid-column: 2;
+    }
+
+    .compare-align-right {
+      justify-content: flex-start;
+
+      &:empty {
+        display: none;
+      }
+    }
+  }
+
+  .compare-value-label {
+    display: block;
+    margin-bottom: 2px;
+    font-family: system-ui, sans-serif;
+    font-size: 0.72rem;
+    color: var(--color-text-muted);
+    text-transform: capitalize;
+  }
+
+  .compare-group-toggle {
+    padding: 0 14px;
+  }
+
+  .compare-group-name {
+    min-width: 0;
+  }
+
+  .compare-group-hint {
+    display: none;
   }
 }

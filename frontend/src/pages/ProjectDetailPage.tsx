@@ -43,6 +43,7 @@ import { AccessDrawer } from '../components/AccessDrawer';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Select } from '../components/Select';
 import { SECRET_REVEAL_DURATION_MS, VARIABLES_PAGE_SIZE } from '../constants';
+import { environmentColor } from '../lib/environmentColor';
 import { fetchMyPendingKeys, pendingKey } from '../lib/pendingRequests';
 import './ProjectDetailPage.scss';
 
@@ -348,14 +349,14 @@ export function ProjectDetailPage() {
         <div className="project-hero-actions">
           <span className="env-switch-label">Environment</span>
           <div className="env-switch" role="group" aria-label="Environment">
-            {environments.map((environment) => (
+            {environments.map((environment, environmentIndex) => (
               <Link
                 key={environment.id}
                 to={`/projects/${projectId}/environments/${environment.id}`}
                 aria-current={environment.id === activeEnvironmentId ? 'page' : undefined}
                 className={`env-switch-option${environment.id === activeEnvironmentId ? ' env-switch-option--active' : ''}`}
               >
-                <span className="env-switch-dot" aria-hidden="true" />
+                <span className="env-switch-dot" style={{ background: environmentColor(environmentIndex) }} aria-hidden="true" />
                 {environment.name}
               </Link>
             ))}
@@ -370,9 +371,31 @@ export function ProjectDetailPage() {
               </button>
             )}
           </div>
+          {/* Phones: a dropdown instead of the segmented switcher. */}
+          <div className="env-select">
+            {environments.length > 0 && (
+              <label>
+                <span>Environment</span>
+                <Select
+                  value={activeEnvironmentId ?? ''}
+                  onChange={(environmentId) => navigate(`/projects/${projectId}/environments/${environmentId}`)}
+                  options={environments.map((environment) => ({ value: environment.id, label: environment.name }))}
+                />
+              </label>
+            )}
+            {isAdmin && (
+              <button
+                className="outline-btn outline-btn--icon"
+                aria-label={creatingEnv ? 'Close new environment form' : 'New environment'}
+                onClick={() => setCreatingEnv((open) => !open)}
+              >
+                <PlusIcon />
+              </button>
+            )}
+          </div>
           {environments.length >= 2 && (
-            <Link to={`/projects/${projectId}/compare`} className="outline-btn">
-              <CompareIcon /> Compare
+            <Link to={`/projects/${projectId}/compare`} className="outline-btn" aria-label="Compare environments">
+              <CompareIcon /> <span className="compare-label">Compare</span>
             </Link>
           )}
         </div>
@@ -391,7 +414,7 @@ export function ProjectDetailPage() {
       )}
 
       <nav className="project-tabs" aria-label="Project sections">
-        {PROJECT_TABS.map((tab) => (
+        {PROJECT_TABS.filter((tab) => isAdmin || !tab.adminOnly).map((tab) => (
           <button
             key={tab.id}
             className={`project-tab${activeTab === tab.id ? ' project-tab--active' : ''}`}
@@ -412,6 +435,7 @@ export function ProjectDetailPage() {
           <p className="project-detail-empty">Loading variables…</p>
         ) : (
           <VariablesSection
+            key={activeEnvironment.id}
             environment={activeEnvironment}
             configs={configs}
             variables={variables}
@@ -421,7 +445,7 @@ export function ProjectDetailPage() {
           />
         ))}
 
-      {activeTab === 'sources' &&
+      {isAdmin && activeTab === 'sources' &&
         (!activeEnvironment ? (
           noEnvironmentMessage
         ) : (
@@ -437,7 +461,7 @@ export function ProjectDetailPage() {
           />
         ))}
 
-      {activeTab === 'settings' && (
+      {isAdmin && activeTab === 'settings' && (
         <div className="settings-list">
           <SettingsRow title="General" description="Project name and description shown across Kosha.">
             <ProjectGeneralForm project={project} isAdmin={isAdmin} onChange={refreshProject} />
@@ -458,13 +482,13 @@ export function ProjectDetailPage() {
               noEnvironmentMessage
             ) : (
               <ul className="settings-environment-list">
-                {environments.map((environment) => (
+                {environments.map((environment, environmentIndex) => (
                   <li key={environment.id}>
                     <Link
                       to={`/projects/${projectId}/environments/${environment.id}`}
                       className="settings-environment-row"
                     >
-                      <span className="env-switch-dot" aria-hidden="true" />
+                      <span className="env-switch-dot" style={{ background: environmentColor(environmentIndex) }} aria-hidden="true" />
                       <span className="settings-environment-name">{environment.name}</span>
                       {environment.id === activeEnvironmentId && <span className="chip">Viewing</span>}
                     </Link>
@@ -497,10 +521,12 @@ export function ProjectDetailPage() {
 
 type ProjectTab = 'variables' | 'sources' | 'settings';
 
-const PROJECT_TABS: { id: ProjectTab; label: string }[] = [
-  { id: 'variables', label: 'Variables' },
-  { id: 'sources', label: 'Sources' },
-  { id: 'settings', label: 'Settings' },
+// Sources (wiring) and Settings (project config, access, environments) are
+// Admin concerns; a Member works in Variables only.
+const PROJECT_TABS: { id: ProjectTab; label: string; adminOnly: boolean }[] = [
+  { id: 'variables', label: 'Variables', adminOnly: false },
+  { id: 'sources', label: 'Sources', adminOnly: true },
+  { id: 'settings', label: 'Settings', adminOnly: true },
 ];
 
 // One Settings block: label column on the left, content on the right
@@ -656,20 +682,45 @@ function ComponentsEditor({
   const [newComponent, setNewComponent] = useState('');
   const [busy, setBusy] = useState(false);
 
+  // Several at once: "frontend, backend, worker" or one per line (pasted).
+  // Duplicates and names the project already has are skipped.
+  const existingNames = new Set(project.components.map((component) => component.name.toLowerCase()));
+  const namesToAdd = [
+    ...new Set(
+      newComponent
+        .split(/[,\n]/)
+        .map((name) => name.trim())
+        .filter((name) => name && !existingNames.has(name.toLowerCase())),
+    ),
+  ];
+
   async function handleAdd(event: FormEvent): Promise<void> {
     event.preventDefault();
-    const trimmed = newComponent.trim();
-    if (!trimmed) return;
+    if (namesToAdd.length === 0) return;
     setBusy(true);
-    try {
-      await addComponent(project.id, trimmed);
-      setNewComponent('');
-      onChange();
-    } catch (err) {
-      showToast(err instanceof ApiError ? err.message : 'Could not add that component.', 'error');
-    } finally {
-      setBusy(false);
+    const failed: string[] = [];
+    let lastError = '';
+    // ponytail: sequential, one request per name — fine for the handful typed at once.
+    for (const name of namesToAdd) {
+      try {
+        await addComponent(project.id, name);
+      } catch (err) {
+        failed.push(name);
+        lastError = err instanceof ApiError ? err.message : 'Could not add that component.';
+      }
     }
+    setBusy(false);
+    const addedCount = namesToAdd.length - failed.length;
+    if (failed.length === 0) {
+      showToast(addedCount === 1 ? `"${namesToAdd[0]}" added.` : `${addedCount} components added.`);
+    } else if (namesToAdd.length === 1) {
+      showToast(lastError, 'error');
+    } else {
+      showToast(`Added ${addedCount}; failed: ${failed.join(', ')}.`, 'error');
+    }
+    // Keep only the ones that failed, so they can be fixed and retried.
+    setNewComponent(failed.join(', '));
+    onChange();
   }
 
   async function handleRemove(componentId: string): Promise<void> {
@@ -687,7 +738,7 @@ function ComponentsEditor({
   return (
     <div className="components-editor">
       {project.components.length === 0 ? (
-        <span className="project-detail-empty">No components yet.</span>
+        <span className="components-empty">No components yet.</span>
       ) : (
         <ul className="project-component-list">
           {project.components.map((component) => (
@@ -711,15 +762,27 @@ function ComponentsEditor({
       {isAdmin && (
         <form className="project-add-component" onSubmit={(e) => void handleAdd(e)}>
           <input
+            aria-label="Component names"
             value={newComponent}
             onChange={(e) => setNewComponent(e.target.value)}
-            placeholder="Add a component, e.g. frontend"
+            // A one-line input would glue pasted lines together — turn them into commas.
+            onPaste={(e) => {
+              const pasted = e.clipboardData.getData('text');
+              if (!pasted.includes('\n')) return;
+              e.preventDefault();
+              const commaSeparated = pasted.split(/\r?\n/).map((line) => line.trim()).filter(Boolean).join(', ');
+              setNewComponent((current) => (current.trim() ? `${current.trim()}, ${commaSeparated}` : commaSeparated));
+            }}
+            placeholder="e.g. frontend, backend, worker"
             disabled={busy}
           />
-          <button type="submit" disabled={busy || !newComponent.trim()}>
-            Add
+          <button type="submit" className="outline-btn" disabled={busy || namesToAdd.length === 0}>
+            {busy ? 'Adding…' : namesToAdd.length > 1 ? `+ Add ${namesToAdd.length}` : '+ Add'}
           </button>
         </form>
+      )}
+      {isAdmin && (
+        <span className="components-hint">Add several at once — separate names with commas, or paste one per line.</span>
       )}
     </div>
   );
@@ -1833,7 +1896,7 @@ function GithubBulkConfigForm({
       </label>
 
       {previewRows && (
-        <div className="table-scroll">
+        <div className="table-scroll table-card">
           <table className="variables-table">
             <thead>
               <tr>
@@ -1914,9 +1977,14 @@ function VariablesSection({
   const { showToast } = useToast();
   const [search, setSearch] = useState('');
   const [componentFilter, setComponentFilter] = useState<string | null>(null);
-  const [collapsedConfigIds, setCollapsedConfigIds] = useState<Set<string>>(new Set());
+  const [componentQuery, setComponentQuery] = useState('');
+  // Open (expanded) groups — starts with just the first component, so a
+  // project with many components opens as a scannable list of headers.
+  const [openConfigIds, setOpenConfigIds] = useState<Set<string>>(
+    () => new Set(configs.length > 0 ? [configs[0].id] : []),
+  );
   // Groups showing every row instead of the first VARIABLES_PAGE_SIZE.
-  const [expandedConfigIds, setExpandedConfigIds] = useState<Set<string>>(new Set());
+  const [fullyShownConfigIds, setFullyShownConfigIds] = useState<Set<string>>(new Set());
   const [addingVariable, setAddingVariable] = useState(false);
   const [importing, setImporting] = useState(false);
   const [pendingDelete, setPendingDelete] = useState<{ configId: string; key: string } | null>(null);
@@ -1948,17 +2016,42 @@ function VariablesSection({
     [configs, visibleVariables],
   );
 
+  const searching = search.trim() !== '';
+
+  // Per-component totals for the sidebar — unaffected by the search box, so
+  // the list reads as "what each component holds", not "what matched".
+  const variableCountByConfig = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const variable of variables) counts.set(variable.configId, (counts.get(variable.configId) ?? 0) + 1);
+    return counts;
+  }, [variables]);
+
+  const sidebarConfigs = configs.filter((config) =>
+    config.componentName.toLowerCase().includes(componentQuery.trim().toLowerCase()),
+  );
+
+  // While searching every matching group is shown open, so a hit is never
+  // hidden inside a collapsed group.
+  function isGroupOpen(configId: string): boolean {
+    return searching || openConfigIds.has(configId);
+  }
+
   function showAllRows(configId: string): void {
-    setExpandedConfigIds((current) => new Set(current).add(configId));
+    setFullyShownConfigIds((current) => new Set(current).add(configId));
   }
 
   function toggleGroup(configId: string): void {
-    setCollapsedConfigIds((current) => {
+    setOpenConfigIds((current) => {
       const next = new Set(current);
       if (next.has(configId)) next.delete(configId);
       else next.add(configId);
       return next;
     });
+  }
+
+  function pickComponent(configId: string | null): void {
+    setComponentFilter(configId);
+    if (configId) setOpenConfigIds((current) => new Set(current).add(configId));
   }
 
   async function confirmDelete(): Promise<void> {
@@ -2010,6 +2103,53 @@ function VariablesSection({
         />
       )}
 
+      <div className="variables-layout">
+        {configs.length > 1 && (
+          <aside className="components-sidebar" aria-label="Components">
+            <div className="components-sidebar-header">
+              <div className="components-sidebar-title">
+                <span>Components</span>
+                <span>{configs.length}</span>
+              </div>
+              <label className="components-sidebar-search">
+                <SearchIcon />
+                <input
+                  aria-label="Filter components"
+                  placeholder="Filter components"
+                  value={componentQuery}
+                  onChange={(e) => setComponentQuery(e.target.value)}
+                />
+              </label>
+            </div>
+            <nav className="components-sidebar-list" aria-label="Jump to component">
+              {!componentQuery.trim() && (
+                <button
+                  className={`components-sidebar-item${componentFilter === null ? ' components-sidebar-item--active' : ''}`}
+                  aria-current={componentFilter === null ? 'true' : undefined}
+                  onClick={() => pickComponent(null)}
+                >
+                  <span className="components-sidebar-name">All components</span>
+                  <span className="components-sidebar-count">{variables.length}</span>
+                </button>
+              )}
+              {sidebarConfigs.map((config) => (
+                <button
+                  key={config.id}
+                  className={`components-sidebar-item${componentFilter === config.id ? ' components-sidebar-item--active' : ''}`}
+                  aria-current={componentFilter === config.id ? 'true' : undefined}
+                  onClick={() => pickComponent(config.id)}
+                >
+                  <span className="components-sidebar-name">{config.componentName}</span>
+                  <span className="components-sidebar-source">{config.sourceType}</span>
+                  <span className="components-sidebar-count">{variableCountByConfig.get(config.id) ?? 0}</span>
+                </button>
+              ))}
+              {sidebarConfigs.length === 0 && <p className="components-sidebar-empty">No components match.</p>}
+            </nav>
+          </aside>
+        )}
+
+        <div className="variables-main">
       {configs.length > 0 && (
         <div className="variables-toolbar">
           <div className="variables-toolbar-row">
@@ -2040,43 +2180,59 @@ function VariablesSection({
               )}
             </div>
           </div>
+          {/* Narrow screens: the sidebar is hidden, a dropdown takes its place. */}
           {configs.length > 1 && (
-            <div className="component-filter-chips" role="group" aria-label="Filter by component">
-              <span className="component-filter-label">Component</span>
-              <button
-                type="button"
-                className={`chip-filter${componentFilter === null ? ' chip-filter--active' : ''}`}
-                onClick={() => setComponentFilter(null)}
-              >
-                All
-              </button>
-              {configs.map((config) => (
-                <button
-                  key={config.id}
-                  type="button"
-                  className={`chip-filter${componentFilter === config.id ? ' chip-filter--active' : ''}`}
-                  onClick={() => setComponentFilter(config.id)}
-                >
-                  {config.componentName}
-                </button>
-              ))}
+            <label className="components-select">
+              <span>Components</span>
+              <Select
+                value={componentFilter ?? ''}
+                onChange={(configId) => pickComponent(configId || null)}
+                options={[
+                  { value: '', label: `All (${variables.length})` },
+                  ...configs.map((config) => ({
+                    value: config.id,
+                    label: `${config.componentName} (${variableCountByConfig.get(config.id) ?? 0})`,
+                  })),
+                ]}
+                searchable={configs.length > 8}
+              />
+            </label>
+          )}
+          {variableGroups.length > 0 && (
+            <div className="variables-summary">
+              <span>
+                {componentFilter === null
+                  ? `${variableGroups.length} of ${configs.length} components`
+                  : '1 component'}
+                {' · '}
+                {searching
+                  ? 'showing components with matches'
+                  : `${variableGroups.filter((group) => openConfigIds.has(group.config.id)).length} expanded`}
+              </span>
+              {!searching && (
+                <div className="variables-summary-actions">
+                  <button
+                    className="outline-btn outline-btn--small"
+                    onClick={() => setOpenConfigIds(new Set(variableGroups.map((group) => group.config.id)))}
+                  >
+                    Expand all
+                  </button>
+                  <button className="outline-btn outline-btn--small" onClick={() => setOpenConfigIds(new Set())}>
+                    Collapse all
+                  </button>
+                </div>
+              )}
             </div>
           )}
         </div>
       )}
-
       {visibleVariables.length === 0 ? (
         <p className="variables-empty">
           {variables.length > 0 ? 'No matching variables.' : 'No variables yet. Connect a component and add one.'}
         </p>
       ) : (
         <>
-          {/* On a narrow viewport the table scrolls sideways to reach Value
-              and the action icons (CLAUDE.md — every screen must work down
-              to phone width) — without this, that just looks like the
-              columns are missing rather than one swipe away. */}
-          <p className="variables-scroll-hint">Swipe to see values →</p>
-          <div className="table-scroll">
+          <div className="table-scroll table-card">
             <table className="variables-table">
               <thead>
                 <tr>
@@ -2086,8 +2242,8 @@ function VariablesSection({
                 </tr>
               </thead>
               {variableGroups.map(({ config, rows }) => {
-                const groupOpen = !collapsedConfigIds.has(config.id);
-                const shownRows = expandedConfigIds.has(config.id) ? rows : rows.slice(0, VARIABLES_PAGE_SIZE);
+                const groupOpen = isGroupOpen(config.id);
+                const shownRows = fullyShownConfigIds.has(config.id) ? rows : rows.slice(0, VARIABLES_PAGE_SIZE);
                 return (
                   <tbody key={config.id}>
                     <tr className="variable-group-row">
@@ -2105,7 +2261,10 @@ function VariablesSection({
                           <span className="variable-group-location" title={configLocation(config)}>
                             {configLocation(config)}
                           </span>
-                          <span className="variable-group-count">{rows.length}</span>
+                          <span className="variable-group-count">
+                            {rows.length} {searching ? (rows.length === 1 ? 'match' : 'matches') : 'variables'}
+                          </span>
+                          <span className="variable-group-hint">{groupOpen ? 'Collapse' : 'Expand'}</span>
                         </button>
                       </td>
                     </tr>
@@ -2146,6 +2305,9 @@ function VariablesSection({
           </div>
         </>
       )}
+
+        </div>
+      </div>
 
       {pendingDelete && (
         <ConfirmDialog
@@ -2390,6 +2552,11 @@ function GithubVariableRow({ variable }: { variable: MergedVariableRow }) {
     <tr>
       <td className="variable-key">
         <span className="variable-cell">
+          {variable.isSecret && (
+            <span className="variable-secret-lock" title="Secret">
+              <LockIcon open={false} />
+            </span>
+          )}
           <span className="variable-cell-text">{variable.key}</span>
           <button
             className={`icon-btn copy-btn${copiedId === keyCopyId ? ' copied' : ''}`}
@@ -2406,8 +2573,12 @@ function GithubVariableRow({ variable }: { variable: MergedVariableRow }) {
           <em className="variable-secret-note">key only — GitHub Secret</em>
         ) : (
           <span className="variable-cell">
-            <span className="variable-cell-text">{variable.value}</span>
-            {variable.value !== null && (
+            {variable.value === '' ? (
+              <span className="variable-empty-tag">empty</span>
+            ) : (
+              <span className="variable-cell-text">{variable.value}</span>
+            )}
+            {variable.value !== null && variable.value !== '' && (
               <button
                 className={`icon-btn copy-btn${copiedId === valueCopyId ? ' copied' : ''}`}
                 aria-label="Copy value"
@@ -2452,6 +2623,9 @@ function VariableRow({
   const [history, setHistory] = useState<VariableHistoryEntry[]>([]);
   const [busy, setBusy] = useState(false);
   const revealTimer = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+  // Phone-width card layout only: tapping the card shows its action buttons
+  // (always visible in the desktop table, so this is a no-op there).
+  const [actionsShown, setActionsShown] = useState(false);
 
   useEffect(() => () => clearTimeout(revealTimer.current), []);
 
@@ -2545,10 +2719,22 @@ function VariableRow({
 
   return (
     <>
-      <tr>
+      <tr
+        className={`variable-row${actionsShown ? ' variable-row--actions-shown' : ''}`}
+        onClick={(event) => {
+          // Taps on the row's own buttons/inputs act on themselves, not the card.
+          if ((event.target as HTMLElement).closest('button, input, a')) return;
+          setActionsShown((shown) => !shown);
+        }}
+      >
         <td className="variable-key">
           <span className="variable-cell">
-            <span className="variable-cell-text">{variable.key}</span>
+            {variable.isSecret && (
+              <span className="variable-secret-lock" title="Secret">
+                <LockIcon open={false} />
+              </span>
+            )}
+          <span className="variable-cell-text">{variable.key}</span>
             <button
               className={`icon-btn copy-btn${copiedId === keyCopyId ? ' copied' : ''}`}
               aria-label="Copy key"
@@ -2573,8 +2759,12 @@ function VariableRow({
             </span>
           ) : (
             <span className="variable-cell">
-              <span className="variable-cell-text">{displayValue}</span>
-              {displayValue !== null && (
+              {displayValue === '' ? (
+                <span className="variable-empty-tag">empty</span>
+              ) : (
+                <span className="variable-cell-text">{displayValue}</span>
+              )}
+              {displayValue !== null && displayValue !== '' && (
                 <button
                   className={`icon-btn copy-btn${copiedId === valueCopyId ? ' copied' : ''}`}
                   aria-label="Copy value"

@@ -15,6 +15,7 @@ function buildUser(overrides: Partial<User> = {}): User {
     role: 'member',
     status: 'active',
     currentRefreshTokenId: null,
+    lastLoginAt: null,
     createdAt: new Date(),
     updatedAt: new Date(),
     ...overrides,

@@ -35,6 +35,11 @@ export class User {
   @Column({ type: 'uuid', nullable: true })
   currentRefreshTokenId!: string | null;
 
+  // Set whenever a new session starts (each Google sign-in) — see
+  // UsersRepository.updateRefreshTokenId. Shown as "Last active".
+  @Column({ type: 'timestamptz', nullable: true })
+  lastLoginAt!: Date | null;
+
   @CreateDateColumn()
   createdAt!: Date;
 

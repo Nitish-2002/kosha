@@ -15,12 +15,12 @@
   right: 0;
   bottom: 0;
   z-index: 91;
-  width: 460px;
-  max-width: 100vw;
   display: flex;
   flex-direction: column;
-  background: var(--color-black-elevated);
+  width: 580px;
+  max-width: 100vw;
   border-left: 1px solid var(--color-border);
+  background: var(--color-black);
   box-shadow: -24px 0 60px rgba(0, 0, 0, 0.5);
   animation: access-drawer-in 0.2s ease-out;
 }
@@ -40,37 +40,59 @@
 .access-drawer-header {
   display: flex;
   align-items: flex-start;
-  justify-content: space-between;
-  gap: 12px;
-  padding: 20px 24px;
+  gap: 14px;
+  padding: 20px 24px 18px;
   border-bottom: 1px solid var(--color-border);
+}
+
+.access-drawer-avatar {
+  display: inline-flex;
+  flex-shrink: 0;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  background: var(--color-black-elevated);
+  font-size: 1rem;
+  font-weight: 600;
+}
+
+.access-drawer-title {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 0;
 
   h2 {
-    margin: 2px 0 0;
-    font-size: 1.05rem;
-    word-break: break-word;
+    margin: 0;
+    overflow: hidden;
+    font-size: 1.2rem;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
   }
 }
 
 .access-drawer-eyebrow {
-  display: block;
-  font-size: 0.7rem;
-  font-weight: 700;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
   text-transform: uppercase;
-  letter-spacing: 0.05em;
-  color: var(--color-red-glow);
+  color: var(--color-text-muted);
 }
 
 .access-drawer-close {
   display: inline-flex;
+  flex-shrink: 0;
   align-items: center;
   justify-content: center;
-  width: 30px;
-  height: 30px;
-  flex-shrink: 0;
+  width: 40px;
+  height: 40px;
   padding: 0;
   border: 1px solid var(--color-border);
-  border-radius: var(--radius);
+  border-radius: 10px;
   background: transparent;
   color: var(--color-text-muted);
   cursor: pointer;
@@ -82,253 +104,322 @@
 }
 
 .access-drawer-body {
-  flex: 1;
-  overflow-y: auto;
-  padding: 24px;
   display: flex;
+  flex: 1;
   flex-direction: column;
-  gap: 18px;
+  gap: 16px;
+  padding: 20px 24px;
+  overflow-y: auto;
 }
 
-.access-drawer-section {
+.access-drawer-note {
   display: flex;
-  flex-direction: column;
-  gap: 12px;
+  align-items: flex-start;
+  gap: 10px;
+  margin: 0;
+  padding: 12px 14px;
+  border: 1px solid var(--color-border);
+  border-radius: 10px;
+  background: var(--color-black-soft);
+  font-size: 0.82rem;
+  line-height: 1.5;
 
-  h3 {
-    margin: 0;
-    font-size: 0.72rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.05em;
-    color: var(--color-text-muted);
-  }
-
-  &:not(:last-child) {
-    padding-bottom: 18px;
-    border-bottom: 1px solid var(--color-border);
+  svg {
+    flex-shrink: 0;
+    margin-top: 1px;
+    color: var(--color-red-glow);
   }
 }
 
 .access-drawer-empty {
+  margin: 0;
   padding: 14px;
   text-align: center;
   font-size: 0.85rem;
   color: var(--color-text-muted);
 }
 
-.access-summary-list {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  list-style: none;
-  margin: 0;
-  padding: 0;
+// ---- One card per project ----
+
+.access-project {
+  overflow: hidden;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-black-soft);
 }
 
-.access-summary-item {
+.access-project-header {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 2px;
+  align-items: center;
+  gap: 12px;
   width: 100%;
-  padding: 9px 12px;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: transparent;
+  padding: 14px 16px;
+  border: 0;
+  background: var(--color-black-elevated);
+  color: var(--color-white);
+  font: inherit;
   text-align: left;
   cursor: pointer;
-  transition: border-color 0.15s ease;
 
-  &:hover {
-    border-color: var(--color-red);
-  }
-
-  &--active {
-    border-color: var(--color-red);
-    background: var(--color-red-tint);
-  }
-}
-
-.access-summary-project {
-  font-size: 0.88rem;
-  font-weight: 600;
-  color: var(--color-white);
-}
-
-.access-summary-detail {
-  font-size: 0.78rem;
-  color: var(--color-text-muted);
-}
-
-.access-project-select {
-  display: flex;
-  flex-direction: column;
-  gap: 6px;
-  font-size: 0.82rem;
-  color: var(--color-text-muted);
-}
-
-.access-matrix-wrap {
-  overflow-x: auto;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
-}
-
-.access-matrix {
-  width: 100%;
-  border-collapse: collapse;
-
-  th,
-  td {
-    padding: 10px 14px;
-    text-align: center;
-    white-space: nowrap;
-  }
-
-  thead th {
-    font-size: 0.7rem;
-    font-weight: 700;
-    text-transform: uppercase;
-    letter-spacing: 0.04em;
+  svg {
+    flex-shrink: 0;
     color: var(--color-text-muted);
-    background: var(--color-black-soft);
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  tbody th {
-    text-align: left;
-    font-size: 0.87rem;
-    font-weight: 600;
-    background: var(--color-black-soft);
-  }
-
-  tbody tr:not(:last-child) th,
-  tbody tr:not(:last-child) td {
-    border-bottom: 1px solid var(--color-border);
-  }
-
-  tbody th,
-  tbody td {
-    border-right: 1px solid var(--color-border);
-  }
-
-  tbody td:last-child {
-    border-right: none;
   }
 }
 
-.access-matrix-cell {
-  padding: 6px !important;
+.access-project-name {
+  flex-grow: 1;
+  font-size: 0.95rem;
+  font-weight: 600;
 }
 
-.access-matrix-toggle {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  width: 30px;
-  height: 30px;
-  padding: 0;
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius);
-  background: var(--color-black);
-  color: var(--color-white);
-  cursor: pointer;
-  transition:
-    border-color 0.15s ease,
-    background 0.15s ease;
-
-  &:hover:not(:disabled) {
-    border-color: var(--color-red);
-  }
-
-  &:disabled {
-    cursor: not-allowed;
-  }
-
-  .access-matrix-cell--granted & {
-    background: var(--color-red);
-    border-color: var(--color-red);
-  }
-
-  // Covered by the row's "All" column, not its own grant — visibly on so it
-  // doesn't read as "not granted", but muted and inert since there's nothing
-  // to toggle here individually (revoke "All" to change it).
-  .access-matrix-cell--implied & {
-    background: transparent;
-    border-color: var(--color-border);
-    border-style: dashed;
-    color: var(--color-red-glow);
-  }
-
-  // Staged, not yet saved — hollow outline rather than the solid fill a real
-  // grant gets, so a glance at the matrix never confuses "about to happen"
-  // with "already true".
-  .access-matrix-cell--pending-grant & {
-    background: transparent;
-    border-color: var(--color-red);
-    border-width: 2px;
-    color: var(--color-red-glow);
-  }
-
-  // Staged for removal — still shows the checkmark (it's still granted for
-  // real, until saved) but faded, so it reads as "on its way out".
-  .access-matrix-cell--pending-revoke & {
-    background: var(--color-red);
-    border-color: var(--color-red);
-    opacity: 0.45;
-  }
-}
-
-.access-matrix-hint {
-  margin: 0;
+.access-project-summary {
   font-size: 0.78rem;
   color: var(--color-text-muted);
+}
 
-  strong {
-    color: var(--color-white);
+.access-environment {
+  padding: 14px 16px;
+  border-top: 1px solid var(--color-border);
+
+  &--changed {
+    background: var(--color-red-tint-subtle);
   }
 }
 
-.access-save-bar {
+.access-environment-row {
   display: flex;
   align-items: center;
   gap: 10px;
-  padding: 10px 14px;
-  background: var(--color-red-tint);
-  border: 1px solid var(--color-red);
-  border-radius: var(--radius);
-  font-size: 0.82rem;
+}
 
-  span {
-    flex: 1;
-  }
+.access-environment-dot {
+  flex-shrink: 0;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+}
+
+.access-environment-name {
+  display: flex;
+  flex-grow: 1;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-weight: 600;
+  text-transform: capitalize;
+}
+
+.access-unsaved {
+  padding: 2px 8px;
+  border-radius: 999px;
+  border: 1px solid var(--color-red-muted);
+  background: var(--color-red-tint);
+  color: var(--color-red-glow);
+  font-size: 0.68rem;
+  font-weight: 600;
+  text-transform: none;
+}
+
+// None / Access segmented control.
+.access-level {
+  display: flex;
+  flex-shrink: 0;
+  gap: 3px;
+  padding: 3px;
+  border: 1px solid var(--color-border);
+  border-radius: 9px;
+  background: var(--color-black);
 
   button {
-    padding: 6px 14px;
-    border-radius: var(--radius);
-    border: 1px solid var(--color-border);
+    min-width: 64px;
+    height: 30px;
+    padding: 0 12px;
+    border: 0;
+    border-radius: 6px;
     background: transparent;
-    color: var(--color-white);
-    font-size: 0.8rem;
+    color: var(--color-text-muted);
+    font: inherit;
+    font-size: 0.82rem;
+    font-weight: 500;
     cursor: pointer;
 
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
+    &[aria-checked='true'] {
+      background: var(--color-black-elevated);
+      color: var(--color-white);
+    }
+
+    &:last-child[aria-checked='true'] {
+      background: var(--color-red);
     }
   }
 }
 
-.access-save-btn {
-  border: none !important;
-  background: linear-gradient(135deg, var(--color-red), var(--color-red-hover)) !important;
-  font-weight: 600;
+.access-scope {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 12px 0 0 18px;
 }
 
-@media (max-width: 480px) {
+.access-scope-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.access-scope-label {
+  width: 84px;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.access-scope-options,
+.access-component-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  button {
+    height: 32px;
+    padding: 0 12px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: transparent;
+    color: var(--color-white);
+    font: inherit;
+    font-size: 0.82rem;
+    cursor: pointer;
+
+    &[aria-checked='true'],
+    &[aria-pressed='true'] {
+      border-color: var(--color-red);
+      background: var(--color-red-tint);
+    }
+  }
+}
+
+.access-component-chips {
+  padding-left: 94px;
+
+  button {
+    height: 28px;
+    border-radius: 999px;
+    font-family: ui-monospace, monospace;
+    font-size: 0.75rem;
+  }
+}
+
+.access-scope-hint,
+.access-scope-warning {
+  padding-left: 94px;
+  font-size: 0.78rem;
+  color: var(--color-text-muted);
+}
+
+.access-scope-warning {
+  align-self: center;
+  padding-left: 4px;
+  color: var(--color-red-glow);
+}
+
+.access-add-project .select-trigger {
+  height: 44px;
+  border: 1px dashed var(--color-border);
+  border-radius: 10px;
+  background: transparent;
+  justify-content: center;
+}
+
+.access-drawer-footnote {
+  margin: 0;
+  font-size: 0.78rem;
+  line-height: 1.5;
+  color: var(--color-text-muted);
+}
+
+.access-drawer-footer {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 24px 18px;
+  border-top: 1px solid var(--color-border);
+}
+
+.access-footer-count {
+  flex-grow: 1;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+
+  &--changed {
+    color: var(--color-red-glow);
+  }
+}
+
+.access-save-btn {
+  height: 40px;
+  padding: 0 18px;
+  border: 0;
+  border-radius: 10px;
+  background: var(--color-red);
+  color: var(--color-white);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    background: var(--color-red-hover);
+  }
+
+  &:disabled {
+    background: var(--color-black-elevated);
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+  }
+}
+
+// Phone: full-width sheet; scope controls drop their left indent.
+@media (max-width: 640px) {
   .access-drawer-header,
   .access-drawer-body {
     padding: 16px;
+  }
+
+  .access-drawer-footer {
+    flex-wrap: wrap;
+    padding: 12px 16px 18px;
+
+    .access-footer-count {
+      flex-basis: 100%;
+    }
+
+    button {
+      flex: 1 1 0;
+      height: 44px;
+    }
+  }
+
+  .access-environment-row {
+    flex-wrap: wrap;
+  }
+
+  .access-level {
+    width: 100%;
+
+    button {
+      flex: 1 1 0;
+      height: 36px;
+    }
+  }
+
+  .access-scope {
+    padding-left: 0;
+  }
+
+  .access-component-chips,
+  .access-scope-hint {
+    padding-left: 0;
   }
 }

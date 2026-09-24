@@ -5,7 +5,12 @@ import {
   markNotificationRead,
   type NotificationItem,
 } from '../api/notifications';
-import { FLOATING_PANEL_VIEWPORT_MARGIN, NOTIFICATION_PANEL_WIDTH, NOTIFICATION_POLL_MS } from '../constants';
+import {
+  FLOATING_PANEL_VIEWPORT_MARGIN,
+  NOTIFICATION_IDLE_MS,
+  NOTIFICATION_PANEL_WIDTH,
+  NOTIFICATION_POLL_MS,
+} from '../constants';
 import './NotificationBell.scss';
 
 export function NotificationBell() {
@@ -21,15 +26,46 @@ export function NotificationBell() {
       .catch(() => undefined);
   }
 
-  // Previously only fetched on mount and when the bell was opened — a new
-  // notification (e.g. a request needing review) sat invisible until the
-  // user happened to reload or click the bell themselves. Polling is the
-  // simplest fix that doesn't need a live-push channel for something this
-  // low-frequency.
+  // Polls so a new notification (e.g. a request needing review) shows up
+  // without a reload — but only while someone is actually here: the tab is
+  // visible AND there's been input in the last NOTIFICATION_IDLE_MS. An idle
+  // or hidden tab makes no calls at all; the first input (or returning to
+  // the tab) after that checks straight away, so nothing is missed.
   useEffect(() => {
+    let lastActivityAt = Date.now();
+    let idle = false;
+
+    function userIsHere(): boolean {
+      return document.visibilityState === 'visible' && Date.now() - lastActivityAt < NOTIFICATION_IDLE_MS;
+    }
+
+    function pollTick(): void {
+      if (userIsHere()) refresh();
+      else idle = true;
+    }
+
+    function handleActivity(): void {
+      lastActivityAt = Date.now();
+      if (idle && document.visibilityState === 'visible') {
+        idle = false;
+        refresh();
+      }
+    }
+
     refresh();
-    const timer = setInterval(refresh, NOTIFICATION_POLL_MS);
-    return () => clearInterval(timer);
+    const timer = setInterval(pollTick, NOTIFICATION_POLL_MS);
+    const activityEvents = ['mousemove', 'keydown', 'click', 'scroll', 'touchstart'] as const;
+    for (const eventName of activityEvents) {
+      window.addEventListener(eventName, handleActivity, { passive: true, capture: true });
+    }
+    document.addEventListener('visibilitychange', handleActivity);
+    return () => {
+      clearInterval(timer);
+      for (const eventName of activityEvents) {
+        window.removeEventListener(eventName, handleActivity, { capture: true });
+      }
+      document.removeEventListener('visibilitychange', handleActivity);
+    };
   }, []);
 
   useEffect(() => {

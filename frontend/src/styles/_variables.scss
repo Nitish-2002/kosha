@@ -25,6 +25,18 @@
   --color-success: #4ade80;
   --color-success-bg: rgba(74, 222, 128, 0.12);
 
+  // Scoped exception #2: one identity dot per environment (switcher, Settings
+  // list, Projects-list chips), assigned by position — see
+  // lib/environmentColor.ts. Dots only; never text, fills or buttons.
+  --color-env-1: #3fb27f;
+  --color-env-2: #e0a84f;
+  --color-env-3: #ff7a82;
+  --color-env-4: #bba2f7;
+  --color-env-5: #5fc7c0;
+  --color-env-6: #f2787a;
+  --color-env-7: #e9b869;
+  --color-env-8: #a8a8a8;
+
   --radius: 8px;
   --radius-lg: 20px;
   --breakpoint-mobile: 480px;

@@ -15,7 +15,12 @@ export interface ProjectSummary {
   createdAt: string;
   updatedAt: string;
   components: ProjectComponentItem[];
+  environments: { id: string; name: string }[];
   environmentCount: number;
+  // Admin-only; null for a Member.
+  memberCount: number | null;
+  // Latest audited write (who + when). Admin-only, Projects list only.
+  lastActivity: { at: string; byEmail: string | null } | null;
 }
 
 export const listProjects = () => apiGet<ProjectSummary[]>('/projects');

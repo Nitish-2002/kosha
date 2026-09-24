@@ -62,3 +62,117 @@ button {
     }
   }
 }
+
+// Bordered card around a wide table (pair with .table-scroll for the
+// horizontal-scroll container on phones).
+.table-card {
+  overflow: hidden; // content follows the card's rounded corners
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-black-soft);
+
+  // Audit log / Compare give .table-scroll its own border + radius globally;
+  // inside a card that draws a second, clipped border.
+  > .table-scroll {
+    border: 0;
+    border-radius: 0;
+  }
+}
+
+// Checkboxes in the palette (row selection, Secret flag, pickers). The
+// native box renders bright white on the dark theme, and accent-color only
+// tints the checked state — so draw it ourselves: dark box, red when checked.
+input[type='checkbox'] {
+  appearance: none;
+  display: inline-grid;
+  place-content: center;
+  flex-shrink: 0;
+  width: 16px;
+  height: 16px;
+  margin: 0;
+  border: 1px solid var(--color-text-muted);
+  border-radius: 4px;
+  background: var(--color-black);
+  cursor: pointer;
+  transition:
+    background 0.15s ease,
+    border-color 0.15s ease;
+
+  // Tick: a rotated L drawn with two borders.
+  &::after {
+    content: '';
+    width: 4px;
+    height: 8px;
+    margin-top: -2px;
+    border: solid var(--color-white);
+    border-width: 0 2px 2px 0;
+    transform: rotate(45deg) scale(0);
+    transition: transform 0.1s ease;
+  }
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-red);
+  }
+
+  &:checked {
+    border-color: var(--color-red);
+    background: var(--color-red);
+
+    &::after {
+      transform: rotate(45deg) scale(1);
+    }
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-red-glow);
+    outline-offset: 2px;
+  }
+
+  &:disabled {
+    opacity: 0.4;
+    cursor: not-allowed;
+  }
+}
+
+// Shared secondary action button — Compare, Import .env, Manage, etc. Also used on
+// <Link>s, hence text-decoration.
+.outline-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 16px;
+  border-radius: 10px;
+  border: 1px solid var(--color-border);
+  background: var(--color-black-soft);
+  color: var(--color-white);
+  font-size: 0.88rem;
+  font-weight: 500;
+  text-decoration: none;
+  white-space: nowrap;
+  cursor: pointer;
+
+  &:hover:not(:disabled) {
+    border-color: var(--color-red);
+  }
+
+  &:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+  }
+
+  &--icon {
+    width: 40px;
+    padding: 0;
+    color: var(--color-text-muted);
+  }
+
+  &--small {
+    height: 34px;
+    padding: 0 12px;
+    border-radius: 8px;
+    background: transparent;
+    font-size: 0.82rem;
+  }
+}

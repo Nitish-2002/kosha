@@ -142,10 +142,6 @@
     color: var(--color-red-glow);
     font-weight: 600;
     box-shadow: inset 0 0 0 1px var(--color-red);
-
-    .env-switch-dot {
-      background: var(--color-red-glow);
-    }
   }
 }
 
@@ -155,6 +151,42 @@
   height: 8px;
   border-radius: 50%;
   background: var(--color-text-muted);
+}
+
+.env-select {
+  display: none;
+  flex-grow: 1;
+  align-items: flex-end;
+  gap: 8px;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+    gap: 6px;
+  }
+
+  // The field caption only — not the <Select>'s own label span.
+  label > span {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  // Shared <Select>, sized for touch.
+  .select-trigger {
+    height: 44px;
+    border-radius: 10px;
+    background: var(--color-black-soft);
+    text-transform: capitalize;
+  }
+
+  .outline-btn--icon {
+    height: 44px;
+    width: 44px;
+  }
 }
 
 .env-switch-add {
@@ -174,41 +206,6 @@
   &:hover {
     color: var(--color-white);
     background: var(--color-black-elevated);
-  }
-}
-
-// Secondary action button — Compare, Import .env, Manage, etc. Also used on
-// <Link>s, hence text-decoration.
-.outline-btn {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  gap: 8px;
-  height: 40px;
-  padding: 0 16px;
-  border-radius: 10px;
-  border: 1px solid var(--color-border);
-  background: var(--color-black-soft);
-  color: var(--color-white);
-  font-size: 0.88rem;
-  font-weight: 500;
-  text-decoration: none;
-  white-space: nowrap;
-  cursor: pointer;
-
-  &:hover:not(:disabled) {
-    border-color: var(--color-red);
-  }
-
-  &:disabled {
-    opacity: 0.5;
-    cursor: not-allowed;
-  }
-
-  &--icon {
-    width: 40px;
-    padding: 0;
-    color: var(--color-text-muted);
   }
 }
 
@@ -503,16 +500,28 @@
   }
 }
 
+// Settings → Components: same field/button sizing as the General form above.
 .components-editor {
-  padding: 18px 20px;
-  background: var(--color-black-soft);
-  border: 1px solid var(--color-border);
-  border-radius: var(--radius-lg);
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  max-width: 640px;
+}
+
+.components-empty,
+.components-hint {
+  color: var(--color-text-muted);
+  font-size: 0.88rem;
+}
+
+.components-hint {
+  margin-top: -8px;
+  font-size: 0.78rem;
 }
 
 .project-component-list {
   list-style: none;
-  margin: 0 0 12px;
+  margin: 0;
   padding: 0;
   display: flex;
   flex-wrap: wrap;
@@ -523,30 +532,33 @@
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 4px 6px 4px 12px;
-  border-radius: 999px;
-  background: var(--color-red-tint);
-  color: var(--color-red-glow);
+  height: 32px;
+  padding: 0 6px 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: 8px;
+  background: var(--color-black-elevated);
+  color: var(--color-white);
+  font-family: ui-monospace, monospace;
   font-size: 0.8rem;
-  font-weight: 600;
 }
 
 .project-component-remove {
-  width: 18px;
-  height: 18px;
+  width: 22px;
+  height: 22px;
   display: flex;
   align-items: center;
   justify-content: center;
   border: none;
-  border-radius: 50%;
+  border-radius: 6px;
   background: transparent;
-  color: inherit;
+  color: var(--color-text-muted);
   font-size: 1rem;
   line-height: 1;
   cursor: pointer;
 
-  &:hover {
+  &:hover:not(:disabled) {
     background: var(--color-red-tint-strong);
+    color: var(--color-white);
   }
 }
 
@@ -557,32 +569,23 @@
   input {
     flex: 1;
     min-width: 0;
-    padding: 7px 10px;
-    border-radius: var(--radius);
+    height: 42px;
+    padding: 0 14px;
+    border-radius: 10px;
     border: 1px solid var(--color-border);
-    background: var(--color-black);
+    background: var(--color-black-soft);
     color: var(--color-white);
-    font-size: 0.85rem;
+    font: inherit;
+    font-size: 0.92rem;
+
+    &:focus-visible {
+      outline: 2px solid var(--color-red-glow);
+      outline-offset: 1px;
+    }
   }
 
-  button {
-    padding: 7px 14px;
-    border-radius: var(--radius);
-    border: 1px solid var(--color-border);
-    background: transparent;
-    color: var(--color-white);
-    font-size: 0.85rem;
-    cursor: pointer;
-    white-space: nowrap;
-
-    &:hover:not(:disabled) {
-      border-color: var(--color-red);
-    }
-
-    &:disabled {
-      opacity: 0.5;
-      cursor: not-allowed;
-    }
+  .outline-btn {
+    height: 42px;
   }
 }
 
@@ -927,14 +930,6 @@
   margin-left: auto;
 }
 
-.component-filter-label {
-  margin-right: 4px;
-  font-size: 0.72rem;
-  color: var(--color-text-muted);
-  text-transform: uppercase;
-  letter-spacing: 0.08em;
-}
-
 .variables-search {
   position: relative;
   display: block;
@@ -972,33 +967,175 @@
   }
 }
 
-.component-filter-chips {
+// Components sidebar (desktop) + table column side by side. Below 1024px the
+// sidebar hides and .components-select takes its place.
+.variables-layout {
   display: flex;
-  flex-wrap: wrap;
-  align-items: center;
-  gap: 6px;
+  align-items: flex-start;
+  gap: 24px;
 }
 
-.chip-filter {
-  padding: 4px 11px;
-  font-size: 0.75rem;
-  font-weight: 500;
-  color: var(--color-text-muted);
-  background: none;
+.variables-main {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.components-sidebar {
+  position: sticky;
+  top: 16px;
+  flex-shrink: 0;
+  width: 264px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
   border: 1px solid var(--color-border);
-  border-radius: 999px;
+  border-radius: 12px;
+  background: var(--color-black-soft);
+}
+
+.components-sidebar-header {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 14px 14px 12px;
+  border-bottom: 1px solid var(--color-border);
+}
+
+.components-sidebar-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.72rem;
+  font-weight: 600;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.components-sidebar-search {
+  position: relative;
+  display: block;
+
+  svg {
+    position: absolute;
+    top: 50%;
+    left: 10px;
+    transform: translateY(-50%);
+    color: var(--color-text-muted);
+    pointer-events: none;
+  }
+
+  input {
+    width: 100%;
+    height: 36px;
+    padding: 0 10px 0 32px;
+    border-radius: 8px;
+    border: 1px solid var(--color-border);
+    background: var(--color-black);
+    color: var(--color-white);
+    font-size: 0.82rem;
+  }
+}
+
+.components-sidebar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  max-height: 70vh;
+  padding: 6px;
+  overflow-y: auto;
+}
+
+.components-sidebar-item {
+  display: flex;
+  flex-shrink: 0;
+  align-items: center;
+  gap: 8px;
+  height: 36px;
+  padding: 0 10px;
+  border: 0;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--color-white);
+  font: inherit;
+  font-size: 0.82rem;
+  text-align: left;
   cursor: pointer;
 
   &:hover {
-    color: var(--color-white);
-    border-color: var(--color-text-muted);
+    background: var(--color-black-elevated);
   }
 
-  &--active {
-    color: var(--color-red-glow);
+  &--active,
+  &--active:hover {
     background: var(--color-red-tint);
-    border-color: var(--color-red);
+    font-weight: 600;
   }
+}
+
+.components-sidebar-name {
+  flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.components-sidebar-source {
+  font-size: 0.68rem;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--color-text-muted);
+}
+
+.components-sidebar-count {
+  min-width: 26px;
+  text-align: right;
+  font-size: 0.75rem;
+  font-variant-numeric: tabular-nums;
+  color: var(--color-text-muted);
+}
+
+.components-sidebar-empty {
+  margin: 0;
+  padding: 12px 10px;
+  font-size: 0.82rem;
+  color: var(--color-text-muted);
+}
+
+.components-select {
+  display: none;
+  flex-direction: column;
+  gap: 6px;
+
+  > span {
+    font-size: 0.72rem;
+    font-weight: 600;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+  }
+
+  .select-trigger {
+    height: 44px;
+    border-radius: 10px;
+    background: var(--color-black-soft);
+  }
+}
+
+.variables-summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 8px 12px;
+  color: var(--color-text-muted);
+  font-size: 0.82rem;
+}
+
+.variables-summary-actions {
+  display: flex;
+  gap: 8px;
 }
 
 .variables-add-btn {
@@ -1117,19 +1254,6 @@
 
 .table-scroll {
   overflow-x: auto;
-  border: 1px solid var(--color-border);
-  border-radius: 12px;
-  background: var(--color-black-soft);
-}
-
-// Only shown under the mobile breakpoint below, where the table's 640px
-// min-width means Value and the action icons scroll off-screen — without an
-// explicit hint that reads as "those columns are just gone", not "swipe".
-.variables-scroll-hint {
-  display: none;
-  margin: 0 0 6px;
-  font-size: 0.78rem;
-  color: var(--color-text-muted);
 }
 
 .variables-table {
@@ -1214,6 +1338,31 @@
 .variable-group-count {
   color: var(--color-text-muted);
   font-size: 0.78rem;
+  white-space: nowrap;
+}
+
+.variable-group-hint {
+  min-width: 60px;
+  text-align: right;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--color-red-glow);
+  white-space: nowrap;
+}
+
+.variable-secret-lock {
+  display: inline-flex;
+  flex-shrink: 0;
+  color: var(--color-red-glow);
+}
+
+.variable-empty-tag {
+  padding: 2px 8px;
+  border: 1px dashed var(--color-border);
+  border-radius: 6px;
+  font-family: inherit;
+  font-size: 0.75rem;
+  color: var(--color-text-muted);
 }
 
 .variable-key {
@@ -1371,9 +1520,38 @@
   color: var(--color-text-muted);
 }
 
+@media (max-width: 1024px) {
+  .components-sidebar {
+    display: none;
+  }
+
+  .components-select {
+    display: flex;
+  }
+}
+
 @media (max-width: 768px) {
   .settings-row {
     grid-template-columns: minmax(0, 1fr);
+  }
+
+  // Segmented switcher → native select; Compare → icon only.
+  .env-switch,
+  .env-switch-label {
+    display: none;
+  }
+
+  .env-select {
+    display: flex;
+  }
+
+  .compare-label {
+    display: none;
+  }
+
+  .project-hero-actions {
+    width: 100%;
+    align-items: flex-end;
   }
 }
 
@@ -1390,16 +1568,98 @@
     display: none;
   }
 
-  .components-editor {
-    padding: 14px 16px;
-  }
-
   .variables-toolbar-actions {
     margin-left: 0;
     width: 100%;
   }
+}
 
-  .variables-scroll-hint {
-    display: block;
+// Phones: the variables table becomes a stack of cards — key on top, value
+// below, and (for editable rows) actions revealed by tapping the card.
+@media (max-width: 640px) {
+  .variables-table {
+    min-width: 0;
+
+    thead {
+      display: none;
+    }
+
+    tbody,
+    tr,
+    td {
+      display: block;
+    }
+
+    td {
+      padding: 0;
+      border-bottom: none;
+    }
+
+    tr:hover td {
+      background: none;
+    }
+
+    tbody tr:not(.variable-group-row):not(.variable-history-row) {
+      padding: 12px 14px;
+      border-bottom: 1px solid var(--color-border);
+    }
+
+    .variable-value {
+      min-width: 0;
+      margin-top: 6px;
+      color: var(--color-text-muted);
+    }
+
+    // GitHub rows have nothing in the actions cell (copy lives inline).
+    td:empty {
+      display: none;
+    }
+  }
+
+  .variable-key {
+    white-space: normal;
+    word-break: break-all;
+  }
+
+  .variable-cell-text {
+    max-width: none;
+  }
+
+  .variable-row {
+    cursor: pointer;
+
+    .variable-actions {
+      display: none;
+    }
+
+    &--actions-shown {
+      background: var(--color-black-elevated);
+
+      .variable-actions {
+        display: block;
+        margin-top: 10px;
+      }
+    }
+  }
+
+  // Bigger touch targets once the actions are showing.
+  .variable-actions-inner {
+    flex-wrap: wrap;
+    gap: 8px;
+
+    .icon-btn {
+      width: 44px;
+      height: 44px;
+      border: 1px solid var(--color-border);
+      background: var(--color-black-soft);
+    }
+  }
+
+  .variable-history-row td {
+    padding: 0 14px 12px;
+  }
+
+  .variable-group-location {
+    display: none;
   }
 }

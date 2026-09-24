@@ -6,6 +6,8 @@ export interface UserSummary {
   email: string;
   role: UserRole;
   status: 'active' | 'deactivated';
+  // Last Google sign-in; null if they haven't signed in since this was tracked.
+  lastLoginAt: string | null;
   createdAt: string;
   updatedAt: string;
 }

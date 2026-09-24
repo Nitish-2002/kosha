@@ -14,7 +14,8 @@ export function AuditLogPage() {
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [members, setMembers] = useState<UserSummary[]>([]);
   const [projectId, setProjectId] = useState('');
-  const [userId, setUserId] = useState('');
+  // ?userId= pre-filters (Members page → "View activity in audit log").
+  const [userId, setUserId] = useState(() => new URLSearchParams(window.location.search).get('userId') ?? '');
   const [action, setAction] = useState('');
   const [from, setFrom] = useState('');
   const [to, setTo] = useState('');

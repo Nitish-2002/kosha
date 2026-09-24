@@ -71,6 +71,24 @@ export class AuditService {
     });
   }
 
+  // projectId -> who made the latest write and when. Admin-only data (it
+  // names another user) — callers must not pass it to a Member.
+  async latestWriteByProject(
+    projectIds: string[],
+  ): Promise<Map<string, { at: Date; byEmail: string | null }>> {
+    const rows = await this.auditRepository.latestWritePerProject(projectIds);
+    const users = await this.userLookup.findByIds([
+      ...new Set(rows.map((row) => row.userId)),
+    ]);
+    const emailById = new Map(users.map((user) => [user.id, user.email]));
+    return new Map(
+      rows.map((row) => [
+        row.projectId!,
+        { at: row.createdAt, byEmail: emailById.get(row.userId) ?? null },
+      ]),
+    );
+  }
+
   async list(filter: ListAuditLogDto): Promise<AuditLogPage> {
     const limit = filter.limit ?? DEFAULT_LIMIT;
     const offset = filter.offset ?? 0;

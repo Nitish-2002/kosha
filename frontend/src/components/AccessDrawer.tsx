@@ -2,7 +2,6 @@ import { useEffect, useMemo, useState } from 'react';
 import { useToast } from '../context/useToast';
 import { ApiError } from '../api/client';
 import { listProjects, type ProjectSummary } from '../api/projects';
-import { listEnvironments, type EnvironmentSummary } from '../api/environments';
 import {
   createAssignment,
   listAssignments,
@@ -11,20 +10,56 @@ import {
 } from '../api/project-assignments';
 import { Select } from './Select';
 import { ConfirmDialog } from './ConfirmDialog';
-import { ALL_COMPONENTS_KEY } from '../constants';
+import { environmentColor } from '../lib/environmentColor';
 import './AccessDrawer.scss';
 
 // A Member sees only what they hold a ProjectAssignment for (PRD — Core
-// entities). Rather than a "view current access" list plus a separate
-// "grant access" form that can drift out of sync (an admin picking a
-// combination that already exists, only finding out after submitting),
-// this is one live matrix per project: environments as rows, components as
-// columns, a checked cell means granted. Clicking a cell grants or revokes
-// it immediately — there's nothing to submit and no invalid state to hit.
-type CellAction = 'grant' | 'revoke';
+// entities). Per environment the Admin picks None or Access, and for Access
+// either All components (one wildcard assignment — also covers components
+// added later) or a Selected set (one assignment per component). Changes are
+// staged and only written on "Save changes" — a stray click never changes
+// what a real Member can access by itself.
+interface EnvironmentAccess {
+  projectId: string;
+  hasAccess: boolean;
+  allComponents: boolean;
+  componentIds: string[];
+}
+
+type AccessDraft = Record<string, EnvironmentAccess>; // environmentId → access
+
+function accessFromAssignments(assignments: AssignmentSummary[]): AccessDraft {
+  const draft: AccessDraft = {};
+  for (const assignment of assignments) {
+    const entry = draft[assignment.environmentId] ?? {
+      projectId: assignment.projectId,
+      hasAccess: true,
+      allComponents: false,
+      componentIds: [],
+    };
+    if (assignment.projectComponentId === null) entry.allComponents = true;
+    else entry.componentIds = [...entry.componentIds, assignment.projectComponentId];
+    draft[assignment.environmentId] = entry;
+  }
+  return draft;
+}
+
+const NO_ACCESS = (projectId: string): EnvironmentAccess => ({
+  projectId,
+  hasAccess: false,
+  allComponents: true,
+  componentIds: [],
+});
+
+function sameAccess(first: EnvironmentAccess, second: EnvironmentAccess): boolean {
+  if (first.hasAccess !== second.hasAccess) return false;
+  if (!first.hasAccess) return true;
+  if (first.allComponents !== second.allComponents) return false;
+  return first.allComponents || [...first.componentIds].sort().join() === [...second.componentIds].sort().join();
+}
 
 // `lockedProjectId` pins the drawer to one project (opened from that
-// project's page) — the cross-project summary and project picker are hidden.
+// project's Settings → Access) — no other project cards, no "Add project".
 export function AccessDrawer({
   member,
   lockedProjectId,
@@ -37,181 +72,103 @@ export function AccessDrawer({
   const { showToast } = useToast();
   const [projects, setProjects] = useState<ProjectSummary[]>([]);
   const [assignments, setAssignments] = useState<AssignmentSummary[]>([]);
-  const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
-  const [selectedProjectId, setSelectedProjectId] = useState(lockedProjectId ?? '');
+  const [draft, setDraft] = useState<AccessDraft>({});
+  const [shownProjectIds, setShownProjectIds] = useState<string[]>([]);
+  const [collapsedProjectIds, setCollapsedProjectIds] = useState<Set<string>>(new Set());
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  // Staged, not-yet-written changes — a click only marks a cell as pending;
-  // nothing is granted or revoked until "Save changes" is clicked. A stray
-  // click while scanning the matrix (or navigating away) should never by
-  // itself change what a real Member can access.
-  const [pendingChanges, setPendingChanges] = useState<Map<string, CellAction>>(new Map());
-  const [confirmDiscard, setConfirmDiscard] = useState<(() => void) | null>(null);
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
 
-  function refreshAssignments(): Promise<AssignmentSummary[]> {
+  function loadAssignments(): Promise<AssignmentSummary[]> {
     return listAssignments(member.id).then((assignmentsData) => {
       setAssignments(assignmentsData);
+      setDraft(accessFromAssignments(assignmentsData));
       return assignmentsData;
     });
   }
 
   useEffect(() => {
-    Promise.all([listProjects(), refreshAssignments()])
+    Promise.all([listProjects(), loadAssignments()])
       .then(([projectsData, assignmentsData]) => {
         setProjects(projectsData);
-        // Land on a project the member is already assigned to, if any —
-        // otherwise leave it to the admin to pick one.
-        if (!lockedProjectId && assignmentsData.length > 0) setSelectedProjectId(assignmentsData[0].projectId);
+        setShownProjectIds(
+          lockedProjectId ? [lockedProjectId] : [...new Set(assignmentsData.map((assignment) => assignment.projectId))],
+        );
       })
       .catch(() => showToast('Could not load access data.', 'error'))
       .finally(() => setLoading(false));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [member.id]);
 
-  useEffect(() => {
-    if (!selectedProjectId) {
-      setEnvironments([]);
-      return;
-    }
-    listEnvironments(selectedProjectId)
-      .catch(() => [])
-      .then((environmentsData) => setEnvironments(environmentsData ?? []));
-  }, [selectedProjectId]);
+  const savedAccess = useMemo(() => accessFromAssignments(assignments), [assignments]);
 
-  const selectedProject = projects.find((project) => project.id === selectedProjectId);
+  function accessFor(environmentId: string, projectId: string, source: AccessDraft): EnvironmentAccess {
+    return source[environmentId] ?? NO_ACCESS(projectId);
+  }
 
-  // Read-only "what does this member actually have" overview, grouped by
-  // project then environment — answers that at a glance instead of making
-  // an admin click through each project's matrix one at a time to find out.
-  const accessSummary = useMemo(() => {
-    const projectOrder: string[] = [];
-    const byProject = new Map<string, { projectName: string; environments: Map<string, string[]> }>();
-    for (const assignment of assignments) {
-      if (!byProject.has(assignment.projectId)) {
-        byProject.set(assignment.projectId, { projectName: assignment.projectName, environments: new Map() });
-        projectOrder.push(assignment.projectId);
-      }
-      const entry = byProject.get(assignment.projectId)!;
-      const scopeLabel = assignment.componentName ?? 'All';
-      const existing = entry.environments.get(assignment.environmentName) ?? [];
-      entry.environments.set(assignment.environmentName, [...existing, scopeLabel]);
-    }
-    return projectOrder.map((projectId) => {
-      const { projectName, environments } = byProject.get(projectId)!;
-      const environmentSummaries = [...environments.entries()].map(
-        ([environmentName, scopes]) => `${environmentName} (${scopes.includes('All') ? 'All' : scopes.join(', ')})`,
-      );
-      return { projectId, projectName, environmentSummaries };
-    });
-  }, [assignments]);
+  const changedEnvironmentIds = projects
+    .flatMap((project) => project.environments.map((environment) => ({ environment, project })))
+    .filter(
+      ({ environment, project }) =>
+        !sameAccess(accessFor(environment.id, project.id, draft), accessFor(environment.id, project.id, savedAccess)),
+    )
+    .map(({ environment }) => environment.id);
 
-  // environmentId -> column key ('ALL' or componentId) -> assignment id
-  const grantMap = useMemo(() => {
-    const map = new Map<string, Map<string, string>>();
-    for (const assignment of assignments) {
-      if (assignment.projectId !== selectedProjectId) continue;
-      const key = assignment.projectComponentId ?? ALL_COMPONENTS_KEY;
-      if (!map.has(assignment.environmentId)) map.set(assignment.environmentId, new Map());
-      map.get(assignment.environmentId)!.set(key, assignment.id);
-    }
-    return map;
-  }, [assignments, selectedProjectId]);
+  // "Selected" with nothing ticked isn't a valid grant — make them pick one or choose None.
+  const hasEmptySelection = Object.values(draft).some(
+    (access) => access.hasAccess && !access.allComponents && access.componentIds.length === 0,
+  );
 
-  // A click only stages a change locally — see the `pendingChanges` comment
-  // above for why nothing is written to the server here.
-  function stageCell(environmentId: string, columnKey: string): void {
-    const cellId = `${environmentId}:${columnKey}`;
-    setPendingChanges((prev) => {
-      const next = new Map(prev);
-      if (next.has(cellId)) {
-        // Clicking a already-staged cell again cancels that staged change.
-        next.delete(cellId);
-      } else {
-        const committedGranted = grantMap.get(environmentId)?.has(columnKey) ?? false;
-        next.set(cellId, committedGranted ? 'revoke' : 'grant');
-      }
-      return next;
+  function updateAccess(environmentId: string, projectId: string, patch: Partial<EnvironmentAccess>): void {
+    setDraft((current) => ({
+      ...current,
+      [environmentId]: { ...accessFor(environmentId, projectId, current), ...patch },
+    }));
+  }
+
+  function toggleComponent(environmentId: string, projectId: string, componentId: string): void {
+    const current = accessFor(environmentId, projectId, draft);
+    updateAccess(environmentId, projectId, {
+      componentIds: current.componentIds.includes(componentId)
+        ? current.componentIds.filter((id) => id !== componentId)
+        : [...current.componentIds, componentId],
     });
   }
 
-  function discardPendingChanges(): void {
-    setPendingChanges(new Map());
-  }
-
-  // Switching projects or closing the drawer with staged-but-unsaved changes
-  // would otherwise silently drop them with no trace — confirm first, same
-  // as any other action that throws away unsaved work.
-  function guardUnsavedChanges(action: () => void): void {
-    if (pendingChanges.size === 0) {
-      action();
-      return;
-    }
-    setConfirmDiscard(() => action);
-  }
-
-  // Returns whether the save actually succeeded — callers that need to chain
-  // a next step (like leaving the drawer) on a successful save, and not on
-  // a failed one, check this instead of assuming the promise resolving means
-  // it worked (errors here are caught and toasted, not rethrown).
   async function saveChanges(): Promise<boolean> {
     setSaving(true);
     try {
-      const touchedEnvironmentIds = new Set<string>();
-      for (const [cellId, action] of pendingChanges) {
-        const [environmentId, columnKey] = cellId.split(':');
-        touchedEnvironmentIds.add(environmentId);
-        if (action === 'revoke') {
-          const existingAssignmentId = grantMap.get(environmentId)?.get(columnKey);
-          if (existingAssignmentId) await removeAssignment(existingAssignmentId);
-        } else {
-          await createAssignment(member.id, {
-            projectId: selectedProjectId,
-            environmentId,
-            projectComponentId: columnKey === ALL_COMPONENTS_KEY ? undefined : columnKey,
-          });
+      for (const environmentId of changedEnvironmentIds) {
+        const project = projects.find((candidate) =>
+          candidate.environments.some((environment) => environment.id === environmentId),
+        )!;
+        const wanted = accessFor(environmentId, project.id, draft);
+        // Every component ticked by hand means "All" for real — a wildcard
+        // grant also covers components added to the project later.
+        const allComponents =
+          wanted.allComponents ||
+          (project.components.length > 0 &&
+            project.components.every((component) => wanted.componentIds.includes(component.id)));
+        // null = the wildcard ("All components") assignment.
+        const wantedKeys: (string | null)[] = !wanted.hasAccess ? [] : allComponents ? [null] : wanted.componentIds;
+        const existing = assignments.filter((assignment) => assignment.environmentId === environmentId);
+
+        for (const assignment of existing) {
+          if (!wantedKeys.includes(assignment.projectComponentId)) await removeAssignment(assignment.id);
+        }
+        for (const projectComponentId of wantedKeys) {
+          if (!existing.some((assignment) => assignment.projectComponentId === projectComponentId)) {
+            await createAssignment(member.id, {
+              projectId: project.id,
+              environmentId,
+              projectComponentId: projectComponentId ?? undefined,
+            });
+          }
         }
       }
-
-      // Checking every individual component by hand should mean the same
-      // thing as checking "All" — not just visually, but for real: a
-      // component added to the project later is only covered by an actual
-      // "All" grant, not by a pile of per-component ones that happened to
-      // add up to the current full set. So once a row ends up with every
-      // component granted, replace those grants with a single wildcard one.
-      const afterRawApply = await refreshAssignments();
-      const componentIds = (selectedProject?.components ?? []).map((component) => component.id);
-      let consolidatedAny = false;
-      for (const environmentId of touchedEnvironmentIds) {
-        const rowAssignments = afterRawApply.filter(
-          (assignment) => assignment.projectId === selectedProjectId && assignment.environmentId === environmentId,
-        );
-        const alreadyAll = rowAssignments.some((assignment) => assignment.projectComponentId === null);
-        const grantedComponentIds = new Set(
-          rowAssignments
-            .filter((assignment) => assignment.projectComponentId !== null)
-            .map((assignment) => assignment.projectComponentId!),
-        );
-        const everyComponentGranted =
-          componentIds.length > 0 && componentIds.every((componentId) => grantedComponentIds.has(componentId));
-        if (!alreadyAll && everyComponentGranted) {
-          await createAssignment(member.id, { projectId: selectedProjectId, environmentId, projectComponentId: undefined });
-          await Promise.all(
-            rowAssignments
-              .filter((assignment) => assignment.projectComponentId !== null)
-              .map((assignment) => removeAssignment(assignment.id)),
-          );
-          consolidatedAny = true;
-        }
-      }
-
-      const changeCount = pendingChanges.size;
-      setPendingChanges(new Map());
-      await refreshAssignments();
-      showToast(
-        consolidatedAny
-          ? `${changeCount} change(s) saved — some rows consolidated into "All".`
-          : `${changeCount} change(s) saved.`,
-      );
+      const changeCount = changedEnvironmentIds.length;
+      await loadAssignments();
+      showToast(`${changeCount} change${changeCount === 1 ? '' : 's'} saved.`);
       return true;
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Could not save those changes.', 'error');
@@ -221,219 +178,224 @@ export function AccessDrawer({
     }
   }
 
+  function discardChanges(): void {
+    setDraft(accessFromAssignments(assignments));
+  }
+
+  function requestClose(): void {
+    if (changedEnvironmentIds.length > 0) setConfirmDiscard(true);
+    else onClose();
+  }
+
+  function toggleProjectCard(projectId: string): void {
+    setCollapsedProjectIds((current) => {
+      const next = new Set(current);
+      if (next.has(projectId)) next.delete(projectId);
+      else next.add(projectId);
+      return next;
+    });
+  }
+
+  const shownProjects = shownProjectIds
+    .map((projectId) => projects.find((project) => project.id === projectId))
+    .filter((project): project is ProjectSummary => project !== undefined);
+  const addableProjects = projects.filter((project) => !shownProjectIds.includes(project.id));
+  const changeCount = changedEnvironmentIds.length;
+
   return (
     <>
-      <div className="access-drawer-backdrop" onClick={() => guardUnsavedChanges(onClose)} />
+      <div className="access-drawer-backdrop" onClick={requestClose} />
       <div className="access-drawer" role="dialog" aria-modal="true" aria-label={`Manage access for ${member.email}`}>
         <div className="access-drawer-header">
-          <div>
-            <span className="access-drawer-eyebrow">
-              {lockedProjectId && selectedProject ? `Access · ${selectedProject.name}` : 'Access'}
-            </span>
+          <span className="access-drawer-avatar" aria-hidden="true">
+            {member.email[0].toUpperCase()}
+          </span>
+          <div className="access-drawer-title">
+            <span className="access-drawer-eyebrow">Manage access</span>
             <h2>{member.email}</h2>
           </div>
-          <button className="access-drawer-close" aria-label="Close" onClick={() => guardUnsavedChanges(onClose)}>
+          <button className="access-drawer-close" aria-label="Close" onClick={requestClose}>
             <CloseIcon />
           </button>
         </div>
 
         <div className="access-drawer-body">
+          <p className="access-drawer-note">
+            <LockIcon />
+            Secret values are always masked for members. Only admins can reveal them.
+          </p>
+
           {loading ? (
             <p className="access-drawer-empty">Loading…</p>
           ) : (
             <>
-              {!lockedProjectId && (
-                <section className="access-drawer-section">
-                  <h3>Current access</h3>
-                  {accessSummary.length === 0 ? (
-                    <p className="access-drawer-empty">Not assigned to any project yet.</p>
-                  ) : (
-                    <ul className="access-summary-list">
-                      {accessSummary.map((group) => (
-                        <li key={group.projectId}>
-                          <button
-                            className={
-                              group.projectId === selectedProjectId
-                                ? 'access-summary-item access-summary-item--active'
-                                : 'access-summary-item'
-                            }
-                            onClick={() => guardUnsavedChanges(() => setSelectedProjectId(group.projectId))}
-                          >
-                            <span className="access-summary-project">{group.projectName}</span>
-                            <span className="access-summary-detail">{group.environmentSummaries.join(' · ')}</span>
-                          </button>
-                        </li>
-                      ))}
-                    </ul>
-                  )}
-                </section>
+              {shownProjects.length === 0 && (
+                <p className="access-drawer-empty">No project access yet. Add a project below.</p>
               )}
 
-              <section className="access-drawer-section">
-                <h3>Edit access</h3>
-                {!lockedProjectId && (
-                  <label className="access-project-select">
-                    Project
-                    <Select
-                      value={selectedProjectId}
-                      onChange={(value) => guardUnsavedChanges(() => setSelectedProjectId(value))}
-                      options={projects.map((project) => ({ value: project.id, label: project.name }))}
-                      placeholder="Select a project"
-                      searchable
-                    />
-                  </label>
-                )}
+              {shownProjects.map((project) => {
+                const open = !collapsedProjectIds.has(project.id);
+                const grantedCount = project.environments.filter(
+                  (environment) => accessFor(environment.id, project.id, draft).hasAccess,
+                ).length;
+                return (
+                  <section key={project.id} className="access-project">
+                    <button className="access-project-header" aria-expanded={open} onClick={() => toggleProjectCard(project.id)}>
+                      <span className="access-project-name">{project.name}</span>
+                      <span className="access-project-summary">
+                        {grantedCount} of {project.environments.length} environments
+                      </span>
+                      <ChevronIcon open={open} />
+                    </button>
 
-                {!selectedProjectId ? (
-                  <p className="access-drawer-empty">Pick a project to manage its access.</p>
-                ) : environments.length === 0 ? (
-                  <p className="access-drawer-empty">This project has no environments yet.</p>
-                ) : (
-                  <div className="access-matrix-wrap">
-                    <table className="access-matrix">
-                      <thead>
-                        <tr>
-                          <th />
-                          <th>All</th>
-                          {selectedProject?.components.map((component) => <th key={component.id}>{component.name}</th>)}
-                        </tr>
-                      </thead>
-                      <tbody>
-                        {environments.map((environment) => {
-                          const allCommittedGranted = grantMap.get(environment.id)?.has(ALL_COMPONENTS_KEY) ?? false;
-                          const allPending = pendingChanges.get(`${environment.id}:${ALL_COMPONENTS_KEY}`);
+                    {open &&
+                      (project.environments.length === 0 ? (
+                        <p className="access-drawer-empty">This project has no environments yet.</p>
+                      ) : (
+                        project.environments.map((environment, environmentIndex) => {
+                          const access = accessFor(environment.id, project.id, draft);
+                          const changed = changedEnvironmentIds.includes(environment.id);
                           return (
-                            <tr key={environment.id}>
-                              <th scope="row">{environment.name}</th>
-                              <MatrixCell
-                                checked={allCommittedGranted}
-                                pending={allPending}
-                                onToggle={() => stageCell(environment.id, ALL_COMPONENTS_KEY)}
-                              />
-                              {(selectedProject?.components ?? []).map((component) => {
-                                const directlyGranted = grantMap.get(environment.id)?.has(component.id) ?? false;
-                                return (
-                                  <MatrixCell
-                                    key={component.id}
-                                    checked={directlyGranted}
-                                    // Covered by the row's committed "All" grant — shown as
-                                    // implicitly on rather than empty, since it reads as
-                                    // "not granted" otherwise even though it is. Computed off
-                                    // the committed state only: it doesn't shift around while
-                                    // a change to "All" is merely staged, only once saved.
-                                    implied={allCommittedGranted && !directlyGranted}
-                                    pending={pendingChanges.get(`${environment.id}:${component.id}`)}
-                                    onToggle={() => stageCell(environment.id, component.id)}
-                                  />
-                                );
-                              })}
-                            </tr>
+                            <div
+                              key={environment.id}
+                              className={`access-environment${changed ? ' access-environment--changed' : ''}`}
+                            >
+                              <div className="access-environment-row">
+                                <span
+                                  className="access-environment-dot"
+                                  style={{ background: environmentColor(environmentIndex) }}
+                                  aria-hidden="true"
+                                />
+                                <span className="access-environment-name">
+                                  {environment.name}
+                                  {changed && <span className="access-unsaved">Unsaved</span>}
+                                </span>
+                                <div className="access-level" role="radiogroup" aria-label={`${environment.name} access`}>
+                                  <button
+                                    role="radio"
+                                    aria-checked={!access.hasAccess}
+                                    onClick={() => updateAccess(environment.id, project.id, { hasAccess: false })}
+                                  >
+                                    None
+                                  </button>
+                                  <button
+                                    role="radio"
+                                    aria-checked={access.hasAccess}
+                                    onClick={() => updateAccess(environment.id, project.id, { hasAccess: true })}
+                                  >
+                                    Access
+                                  </button>
+                                </div>
+                              </div>
+
+                              {access.hasAccess && (
+                                <div className="access-scope">
+                                  <div className="access-scope-row">
+                                    <span className="access-scope-label">Components</span>
+                                    <div className="access-scope-options" role="radiogroup" aria-label="Component scope">
+                                      <button
+                                        role="radio"
+                                        aria-checked={access.allComponents}
+                                        onClick={() => updateAccess(environment.id, project.id, { allComponents: true })}
+                                      >
+                                        All components
+                                      </button>
+                                      <button
+                                        role="radio"
+                                        aria-checked={!access.allComponents}
+                                        onClick={() => updateAccess(environment.id, project.id, { allComponents: false })}
+                                      >
+                                        Selected ({access.componentIds.length})
+                                      </button>
+                                    </div>
+                                  </div>
+                                  {access.allComponents ? (
+                                    <span className="access-scope-hint">
+                                      Includes all {project.components.length} components and any added later.
+                                    </span>
+                                  ) : (
+                                    <div className="access-component-chips">
+                                      {project.components.map((component) => (
+                                        <button
+                                          key={component.id}
+                                          aria-pressed={access.componentIds.includes(component.id)}
+                                          onClick={() => toggleComponent(environment.id, project.id, component.id)}
+                                        >
+                                          {component.name}
+                                        </button>
+                                      ))}
+                                      {access.componentIds.length === 0 && (
+                                        <span className="access-scope-warning">Pick at least one component.</span>
+                                      )}
+                                    </div>
+                                  )}
+                                </div>
+                              )}
+                            </div>
                           );
-                        })}
-                      </tbody>
-                    </table>
-                  </div>
-                )}
-                {selectedProjectId && environments.length > 0 && (
-                  <>
-                    <p className="access-matrix-hint">
-                      Click a cell to stage a change, then save. <strong>All</strong> covers every component,
-                      including ones added later.
-                    </p>
-                    {pendingChanges.size > 0 && (
-                      <div className="access-save-bar">
-                        <span>
-                          {pendingChanges.size} unsaved change{pendingChanges.size === 1 ? '' : 's'}
-                        </span>
-                        <button onClick={discardPendingChanges} disabled={saving}>
-                          Discard
-                        </button>
-                        <button className="access-save-btn" onClick={() => void saveChanges()} disabled={saving}>
-                          {saving ? 'Saving…' : 'Save changes'}
-                        </button>
-                      </div>
-                    )}
-                  </>
-                )}
-              </section>
+                        })
+                      ))}
+                  </section>
+                );
+              })}
+
+              {!lockedProjectId && addableProjects.length > 0 && (
+                <div className="access-add-project">
+                  <Select
+                    value=""
+                    onChange={(projectId) => setShownProjectIds((current) => [...current, projectId])}
+                    options={addableProjects.map((project) => ({ value: project.id, label: project.name }))}
+                    placeholder="+ Add project access"
+                    searchable={addableProjects.length > 8}
+                  />
+                </div>
+              )}
+
+              <p className="access-drawer-footnote">
+                Access lets them see and edit this environment's variables. Deletes and rollbacks still go to an Admin
+                for approval.
+              </p>
             </>
           )}
+        </div>
+
+        <div className="access-drawer-footer">
+          <span className={changeCount > 0 ? 'access-footer-count access-footer-count--changed' : 'access-footer-count'}>
+            {changeCount > 0 ? `${changeCount} unsaved change${changeCount === 1 ? '' : 's'}` : 'No changes'}
+          </span>
+          <button className="outline-btn" onClick={discardChanges} disabled={changeCount === 0 || saving}>
+            Discard
+          </button>
+          <button
+            className="access-save-btn"
+            onClick={() => void saveChanges()}
+            disabled={changeCount === 0 || saving || hasEmptySelection}
+          >
+            {saving ? 'Saving…' : changeCount > 0 ? `Save changes (${changeCount})` : 'Save changes'}
+          </button>
         </div>
       </div>
 
       {confirmDiscard && (
         <ConfirmDialog
           title="Unsaved changes"
-          message={`You have ${pendingChanges.size} unsaved access change${pendingChanges.size === 1 ? '' : 's'}. Save ${pendingChanges.size === 1 ? 'it' : 'them'} before leaving, or discard ${pendingChanges.size === 1 ? 'it' : 'them'}?`}
+          message={`You have ${changeCount} unsaved access change${changeCount === 1 ? '' : 's'}. Save before leaving, or discard?`}
           confirmLabel="Discard"
           primaryLabel="Save changes"
           onConfirm={() => {
-            const action = confirmDiscard;
-            setConfirmDiscard(null);
-            discardPendingChanges();
-            action?.();
+            setConfirmDiscard(false);
+            onClose();
           }}
           onPrimary={() => {
-            const action = confirmDiscard;
-            setConfirmDiscard(null);
+            setConfirmDiscard(false);
             void saveChanges().then((saved) => {
-              if (saved) action?.();
+              if (saved) onClose();
             });
           }}
-          onCancel={() => setConfirmDiscard(null)}
+          onCancel={() => setConfirmDiscard(false)}
         />
       )}
     </>
-  );
-}
-
-function MatrixCell({
-  checked,
-  implied = false,
-  pending,
-  onToggle,
-}: {
-  checked: boolean;
-  // Granted only because the row's "All" column covers it, not by its own
-  // assignment — shown on but not independently toggleable.
-  implied?: boolean;
-  // A staged-but-not-yet-saved change to this cell — 'grant' shows on even
-  // though it isn't yet, 'revoke' keeps showing on (it still is, for now)
-  // but marked as about to go away. Either way nothing has actually been
-  // written until "Save changes" is clicked.
-  pending?: CellAction;
-  onToggle: () => void;
-}) {
-  const on = pending === 'grant' || (pending !== 'revoke' && (checked || implied));
-  const classes = ['access-matrix-cell'];
-  if (pending === 'grant') classes.push('access-matrix-cell--pending-grant');
-  else if (pending === 'revoke') classes.push('access-matrix-cell--pending-revoke');
-  else if (checked) classes.push('access-matrix-cell--granted');
-  else if (implied) classes.push('access-matrix-cell--implied');
-
-  const label = implied
-    ? 'Covered by All — revoke All to change this'
-    : pending === 'grant'
-      ? 'Cancel staged grant'
-      : pending === 'revoke'
-        ? 'Cancel staged revoke'
-        : checked
-          ? 'Stage revoke'
-          : 'Stage grant';
-
-  return (
-    <td className={classes.join(' ')}>
-      <button
-        className="access-matrix-toggle"
-        aria-pressed={on}
-        aria-label={label}
-        title={implied ? 'Covered by "All" — revoke "All" to change this individually' : undefined}
-        disabled={implied}
-        onClick={onToggle}
-      >
-        {on && <CheckIcon />}
-      </button>
-    </td>
   );
 }
 
@@ -445,10 +407,25 @@ function CloseIcon() {
   );
 }
 
-function CheckIcon() {
+function LockIcon() {
   return (
-    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M4.5 12.75l6 6 9-13.5" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <rect x="5" y="11" width="14" height="10" rx="2" stroke="currentColor" strokeWidth="2" />
+      <path d="M8 11V7a4 4 0 0 1 8 0v4" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ open }: { open: boolean }) {
+  return (
+    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d={open ? 'M6 15l6-6 6 6' : 'M6 9l6 6 6-6'}
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }
