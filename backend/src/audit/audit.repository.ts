@@ -7,7 +7,7 @@ import {
   MoreThanOrEqual,
   Repository,
 } from 'typeorm';
-import { AuditAction, AuditLog } from './audit-log.entity';
+import { AuditAction, AuditLog, NON_WRITE_ACTIONS } from './audit-log.entity';
 
 export interface AuditLogFilter {
   projectId?: string;
@@ -29,15 +29,18 @@ export class AuditRepository {
     return this.repo.save(this.repo.create(fields));
   }
 
-  // Newest write (anything but a reveal) per project, one row each, in one
-  // query — DISTINCT ON keeps the first row per projectId in createdAt DESC order.
+  // Newest write (reveals, requests etc. don't count) per project, one row
+  // each, in one query — DISTINCT ON keeps the first row per projectId in
+  // createdAt DESC order.
   latestWritePerProject(projectIds: string[]): Promise<AuditLog[]> {
     if (projectIds.length === 0) return Promise.resolve([]);
     return this.repo
       .createQueryBuilder('audit')
       .distinctOn(['"audit"."projectId"'])
       .where('audit.projectId IN (:...projectIds)', { projectIds })
-      .andWhere('audit.action != :reveal', { reveal: 'reveal' })
+      .andWhere('audit.action NOT IN (:...nonWrites)', {
+        nonWrites: NON_WRITE_ACTIONS,
+      })
       .orderBy('"audit"."projectId"')
       .addOrderBy('audit.createdAt', 'DESC')
       .getMany();

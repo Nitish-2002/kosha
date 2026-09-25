@@ -36,6 +36,13 @@ export class AccessRequestsService {
         );
 
     if (!alreadyPending) {
+      // No users row exists yet, so userId is null; the Google-verified
+      // email is the only identity there is.
+      await this.audit.record({
+        userId: null,
+        action: 'request',
+        metadata: { accessRequestId: saved.id, requestedEmail: email },
+      });
       const admins = await this.users.findAdmins();
       await this.notifications.createForUsers(
         admins.map((admin) => admin.id),

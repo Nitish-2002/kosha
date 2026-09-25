@@ -17,6 +17,11 @@ const AUDIT_ACTIONS: AuditAction[] = [
   'rollback',
   'reveal',
   'import',
+  'request',
+  'reject',
+  'login',
+  'logout',
+  'refresh',
 ];
 
 export class ListAuditLogDto {

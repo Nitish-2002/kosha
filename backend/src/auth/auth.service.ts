@@ -4,6 +4,7 @@ import { JwtService } from '@nestjs/jwt';
 import { randomUUID } from 'crypto';
 import { UsersService } from '../users/users.service';
 import { AccessRequestsService } from '../access-requests/access-requests.service';
+import { AuditService } from '../audit/audit.service';
 import { User } from '../users/user.entity';
 import {
   AccessTokenPayload,
@@ -25,6 +26,7 @@ export class AuthService {
     private readonly accessRequestsService: AccessRequestsService,
     private readonly jwtService: JwtService,
     private readonly configService: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   async handleGoogleLogin(email: string): Promise<GoogleLoginResult> {
@@ -40,6 +42,7 @@ export class AuthService {
     }
 
     const { accessToken, refreshToken } = await this.issueTokens(user);
+    await this.audit.record({ userId: user.id, action: 'login' });
     return { status: 'active', accessToken, refreshToken };
   }
 
@@ -64,11 +67,13 @@ export class AuthService {
       throw new UnauthorizedException();
     }
 
+    await this.audit.record({ userId: user.id, action: 'refresh' });
     return this.signAccessToken(user);
   }
 
   async logout(userId: string): Promise<void> {
     await this.usersService.setCurrentRefreshTokenId(userId, null);
+    await this.audit.record({ userId, action: 'logout' });
   }
 
   private async issueTokens(

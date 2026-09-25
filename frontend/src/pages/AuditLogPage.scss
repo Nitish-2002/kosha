@@ -134,7 +134,8 @@
 
   &--delete,
   &--rollback,
-  &--reveal {
+  &--reveal,
+  &--reject {
     background: rgba(224, 34, 60, 0.12);
     color: var(--color-red-glow);
   }

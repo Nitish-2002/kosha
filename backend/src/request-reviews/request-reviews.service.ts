@@ -105,6 +105,14 @@ export class RequestReviewsService {
       note,
       () => this.executeDelete(request, reviewerId),
     );
+    if (outcome === 'rejected') {
+      await this.requestsService.recordAudit(
+        reviewerId,
+        'reject',
+        { deleteRequest: request },
+        note,
+      );
+    }
     await this.notifications.createForUsers(
       [request.requesterId],
       outcome === 'approved'
@@ -203,6 +211,14 @@ export class RequestReviewsService {
         );
       },
     );
+    if (outcome === 'rejected') {
+      await this.requestsService.recordAudit(
+        reviewerId,
+        'reject',
+        { rollbackRequest: request },
+        note,
+      );
+    }
     await this.notifications.createForUsers(
       [request.requesterId],
       outcome === 'approved'

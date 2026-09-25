@@ -81,7 +81,7 @@ export function AuditLogPage() {
     <div className="audit-log-page">
       <div className="audit-log-header">
         <h1>Audit log</h1>
-        <p>Every create, update, delete, rollback, reveal, and import — who, what, and when. Retained for 7 days.</p>
+        <p>Every change, reveal, request, rejection, and sign-in — who, what, and when. Retained for 7 days.</p>
       </div>
 
       <div className="audit-log-filters">

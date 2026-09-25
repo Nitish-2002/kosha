@@ -1,6 +1,7 @@
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { UsersModule } from '../users/users.module';
+import { AuditModule } from '../audit/audit.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { User } from '../users/user.entity';
 import { Project } from '../projects/project.entity';
@@ -38,6 +39,7 @@ import {
     ]),
     UsersModule,
     NotificationsModule,
+    AuditModule,
   ],
   controllers: [RequestsController],
   providers: [

@@ -6,7 +6,27 @@ import {
 } from 'typeorm';
 
 export type AuditAction =
-  'create' | 'update' | 'delete' | 'rollback' | 'reveal' | 'import';
+  | 'create'
+  | 'update'
+  | 'delete'
+  | 'rollback'
+  | 'reveal'
+  | 'import'
+  | 'request'
+  | 'reject'
+  | 'login'
+  | 'logout'
+  | 'refresh';
+
+// Actions that don't change any project data — excluded from "last changed".
+export const NON_WRITE_ACTIONS: AuditAction[] = [
+  'reveal',
+  'request',
+  'reject',
+  'login',
+  'logout',
+  'refresh',
+];
 
 // Append-only — see CLAUDE.md #2. No update/remove method exists on
 // AuditService by design; don't add one.
@@ -19,8 +39,10 @@ export class AuditLog {
   @PrimaryGeneratedColumn('uuid')
   id!: string;
 
-  @Column({ type: 'uuid' })
-  userId!: string;
+  // Null only for an access request from a not-yet-whitelisted account
+  // (no users row yet) — its email is in metadata.requestedEmail.
+  @Column({ type: 'uuid', nullable: true })
+  userId!: string | null;
 
   @Column({ type: 'uuid', nullable: true })
   projectId!: string | null;

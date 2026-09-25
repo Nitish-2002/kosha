@@ -1,10 +1,22 @@
 import { apiGet } from './client';
 
-export type AuditAction = 'create' | 'update' | 'delete' | 'rollback' | 'reveal' | 'import';
+export type AuditAction =
+  | 'create'
+  | 'update'
+  | 'delete'
+  | 'rollback'
+  | 'reveal'
+  | 'import'
+  | 'request'
+  | 'reject'
+  | 'login'
+  | 'logout'
+  | 'refresh';
 
 export interface AuditLogEntry {
   id: string;
-  userId: string;
+  // null only for an access request from a not-yet-whitelisted account.
+  userId: string | null;
   userEmail: string;
   action: AuditAction;
   projectId: string | null;

@@ -1,6 +1,7 @@
 import { ConflictException, Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { UsersService } from '../users/users.service';
+import { AuditService } from '../audit/audit.service';
 import { NotificationsService } from '../notifications/notifications.service';
 import { GoogleChatService } from '../notifications/google-chat.service';
 import { primaryFrontendUrl } from '../config/frontend-url';
@@ -64,6 +65,7 @@ export class RequestsService {
     private readonly notifications: NotificationsService,
     private readonly chat: GoogleChatService,
     private readonly config: ConfigService,
+    private readonly audit: AuditService,
   ) {}
 
   async createDeleteRequest(
@@ -80,8 +82,42 @@ export class RequestsService {
         key: input.key ?? null,
       }),
     );
+    await this.recordAudit(requesterId, 'request', { deleteRequest: saved });
     await this.notifyAdminsCreated('delete_request_created', saved.id);
     return saved;
+  }
+
+  // Audit row for a request being raised or rejected. The action executed on
+  // approval is logged by the service that performs it (with requesterId).
+  async recordAudit(
+    userId: string,
+    action: 'request' | 'reject',
+    request:
+      { deleteRequest: DeleteRequest } | { rollbackRequest: RollbackRequest },
+    reviewerNote?: string,
+  ): Promise<void> {
+    const [item] =
+      'deleteRequest' in request
+        ? await this.hydrate([request.deleteRequest], [])
+        : await this.hydrate([], [request.rollbackRequest]);
+    await this.audit.record({
+      userId,
+      action,
+      projectId: item.projectId ?? undefined,
+      projectNameSnapshot: item.projectName ?? undefined,
+      environmentId: item.environmentId ?? undefined,
+      environmentNameSnapshot: item.environmentName ?? undefined,
+      componentName: item.componentName ?? undefined,
+      key: item.key ?? undefined,
+      metadata: {
+        requestId: item.id,
+        requestKind: item.kind,
+        targetType: item.targetType,
+        requesterId: item.requesterId,
+        ...(item.targetVersionId && { targetVersionId: item.targetVersionId }),
+        ...(reviewerNote && { reviewerNote }),
+      },
+    });
   }
 
   // The partial unique indexes (UniquePendingRequests migration) allow one
@@ -113,6 +149,7 @@ export class RequestsService {
         targetVersionId,
       }),
     );
+    await this.recordAudit(requesterId, 'request', { rollbackRequest: saved });
     await this.notifyAdminsCreated('rollback_request_created', saved.id);
     return saved;
   }

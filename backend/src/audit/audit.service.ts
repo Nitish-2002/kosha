@@ -5,7 +5,8 @@ import { UserLookupRepository } from './user-lookup.repository';
 import { ListAuditLogDto } from './dto/list-audit-log.dto';
 
 export interface RecordAuditParams {
-  userId: string;
+  // null only for an unauthenticated access request — see AuditLog.userId.
+  userId: string | null;
   action: AuditAction;
   metadata?: Record<string, unknown>;
   projectId?: string;
@@ -18,7 +19,7 @@ export interface RecordAuditParams {
 
 export interface AuditLogEntry {
   id: string;
-  userId: string;
+  userId: string | null;
   userEmail: string;
   action: AuditAction;
   projectId: string | null;
@@ -78,13 +79,18 @@ export class AuditService {
   ): Promise<Map<string, { at: Date; byEmail: string | null }>> {
     const rows = await this.auditRepository.latestWritePerProject(projectIds);
     const users = await this.userLookup.findByIds([
-      ...new Set(rows.map((row) => row.userId)),
+      ...new Set(
+        rows.map((row) => row.userId).filter((id): id is string => !!id),
+      ),
     ]);
     const emailById = new Map(users.map((user) => [user.id, user.email]));
     return new Map(
       rows.map((row) => [
         row.projectId!,
-        { at: row.createdAt, byEmail: emailById.get(row.userId) ?? null },
+        {
+          at: row.createdAt,
+          byEmail: row.userId ? (emailById.get(row.userId) ?? null) : null,
+        },
       ]),
     );
   }
@@ -102,11 +108,16 @@ export class AuditService {
       offset,
     });
 
-    const assignedUserIds = rows
-      .map((row) => row.metadata?.assignedUserId)
-      .filter((id): id is string => typeof id === 'string');
     const userIds = [
-      ...new Set([...rows.map((row) => row.userId), ...assignedUserIds]),
+      ...new Set(
+        rows
+          .flatMap((row) => [
+            row.userId,
+            row.metadata?.assignedUserId,
+            row.metadata?.requesterId,
+          ])
+          .filter((id): id is string => typeof id === 'string'),
+      ),
     ];
     const users = await this.userLookup.findByIds(userIds);
     const emailById = new Map(users.map((user) => [user.id, user.email]));
@@ -115,7 +126,11 @@ export class AuditService {
       items: rows.map((row) => ({
         id: row.id,
         userId: row.userId,
-        userEmail: emailById.get(row.userId) ?? '(deleted user)',
+        userEmail: row.userId
+          ? (emailById.get(row.userId) ?? '(deleted user)')
+          : typeof row.metadata?.requestedEmail === 'string'
+            ? row.metadata.requestedEmail
+            : '(unknown)',
         action: row.action,
         projectId: row.projectId,
         projectName: row.projectNameSnapshot,
@@ -165,10 +180,32 @@ export class AuditService {
         : `Set to ${truncate(newValue)}`;
     }
     const assignedUserId = row.metadata?.assignedUserId;
-    if (typeof assignedUserId !== 'string') return null;
-    const email = emailById.get(assignedUserId) ?? '(deleted user)';
-    return row.action === 'delete'
-      ? `Access revoked from ${email}`
-      : `Access granted to ${email}`;
+    if (typeof assignedUserId === 'string') {
+      const email = emailById.get(assignedUserId) ?? '(deleted user)';
+      return row.action === 'delete'
+        ? `Access revoked from ${email}`
+        : `Access granted to ${email}`;
+    }
+    if (typeof row.metadata?.requestedEmail === 'string') {
+      return 'Requested access to Kosha';
+    }
+    // Delete/rollback request lifecycle: raised (action='request'),
+    // rejected (action='reject'), or executed on approval (the delete/
+    // rollback row itself, which carries requesterId).
+    const requesterId = row.metadata?.requesterId;
+    const requestKind = row.metadata?.requestKind;
+    const requesterEmail =
+      typeof requesterId === 'string'
+        ? (emailById.get(requesterId) ?? '(deleted user)')
+        : null;
+    if (row.action === 'request') {
+      return requestKind === 'delete'
+        ? `Requested delete of ${String(row.metadata?.targetType)}`
+        : 'Requested rollback';
+    }
+    if (row.action === 'reject') {
+      return `Rejected ${String(requestKind)} request from ${requesterEmail}`;
+    }
+    return requesterEmail ? `Approved request from ${requesterEmail}` : null;
   }
 }

@@ -64,6 +64,11 @@ export const AUDIT_ACTION_OPTIONS: { value: AuditAction; label: string }[] = [
   { value: 'rollback', label: 'Rollback' },
   { value: 'reveal', label: 'Reveal' },
   { value: 'import', label: 'Import' },
+  { value: 'request', label: 'Request' },
+  { value: 'reject', label: 'Reject' },
+  { value: 'login', label: 'Login' },
+  { value: 'logout', label: 'Logout' },
+  { value: 'refresh', label: 'Session refresh' },
 ];
 
 // MembersPage: sentinel column key in the access-grant matrix meaning "every
