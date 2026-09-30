@@ -3,6 +3,7 @@ import { RequestsModule } from '../requests/requests.module';
 import { ProjectsModule } from '../projects/projects.module';
 import { EnvironmentsModule } from '../environments/environments.module';
 import { VariablesModule } from '../variables/variables.module';
+import { DbScriptsModule } from '../db-scripts/db-scripts.module';
 import { NotificationsModule } from '../notifications/notifications.module';
 import { RequestReviewsController } from './request-reviews.controller';
 import { RequestReviewsService } from './request-reviews.service';
@@ -17,6 +18,7 @@ import { RequestReviewsService } from './request-reviews.service';
     ProjectsModule,
     EnvironmentsModule,
     VariablesModule,
+    DbScriptsModule,
     NotificationsModule,
   ],
   controllers: [RequestReviewsController],

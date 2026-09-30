@@ -22,6 +22,7 @@ const AUDIT_ACTIONS: AuditAction[] = [
   'login',
   'logout',
   'refresh',
+  'apply',
 ];
 
 export class ListAuditLogDto {

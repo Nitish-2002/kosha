@@ -3,6 +3,7 @@ import {
   Controller,
   Delete,
   Get,
+  HttpCode,
   Param,
   Patch,
   Post,
@@ -19,6 +20,8 @@ import { CreateComponentConfigDto } from './dto/create-component-config.dto';
 import { UpdateComponentConfigDto } from './dto/update-component-config.dto';
 import { TestConnectionDto } from './dto/test-connection.dto';
 import { GithubBulkPreviewDto } from './dto/github-bulk-preview.dto';
+import { ReorderEnvironmentsDto } from './dto/reorder-environments.dto';
+import { GithubBulkEditDto } from './dto/github-bulk-edit.dto';
 
 // Read routes are open to both roles — EnvironmentsService scopes a
 // Member's result to their ProjectAssignments internally. Creating/editing
@@ -45,6 +48,20 @@ export class EnvironmentsController {
     @Req() req: Request,
   ) {
     return this.environmentsService.create(projectId, dto, req.user!.id);
+  }
+
+  @Patch('projects/:projectId/environments/order')
+  @Roles('admin')
+  reorder(
+    @Param('projectId') projectId: string,
+    @Body() dto: ReorderEnvironmentsDto,
+    @Req() req: Request,
+  ) {
+    return this.environmentsService.reorder(
+      projectId,
+      dto.environmentIds,
+      req.user!.id,
+    );
   }
 
   @Get('environments/:id')
@@ -98,6 +115,25 @@ export class EnvironmentsController {
     @Body() dto: GithubBulkPreviewDto,
   ) {
     return this.environmentsService.previewGithubBulk(id, dto);
+  }
+
+  // Not under /components/:configId, so it can never be mistaken for one
+  // connection's id.
+  @Post('environments/:id/github-connections/check')
+  @Roles('admin')
+  @HttpCode(200)
+  checkGithubBulkEdit(@Param('id') id: string, @Body() dto: GithubBulkEditDto) {
+    return this.environmentsService.checkGithubBulkEdit(id, dto);
+  }
+
+  @Patch('environments/:id/github-connections')
+  @Roles('admin')
+  bulkEditGithub(
+    @Param('id') id: string,
+    @Body() dto: GithubBulkEditDto,
+    @Req() req: Request,
+  ) {
+    return this.environmentsService.bulkEditGithub(id, dto, req.user!.id);
   }
 
   @Patch('environments/:id/components/:configId')

@@ -13,6 +13,10 @@ import { VariableMetadata } from '../variables/variable-metadata.entity';
 import { ProjectAssignment } from '../project-assignments/project-assignment.entity';
 import { DeleteRequest } from '../requests/delete-request.entity';
 import { RollbackRequest } from '../requests/rollback-request.entity';
+import { DbScript } from '../db-scripts/db-script.entity';
+import { DbScriptState } from '../db-scripts/db-script-state.entity';
+import { DbScriptUndoRequest } from '../requests/db-script-undo-request.entity';
+import { DbRefresh } from '../db-scripts/db-refresh.entity';
 
 export function buildDatabaseConfig(
   config: ConfigService,
@@ -34,6 +38,10 @@ export function buildDatabaseConfig(
       ProjectAssignment,
       DeleteRequest,
       RollbackRequest,
+      DbScript,
+      DbScriptState,
+      DbScriptUndoRequest,
+      DbRefresh,
     ],
     synchronize: false, // migrations only — see CLAUDE.md non-negotiable #4
     migrationsRun: false,

@@ -14,6 +14,7 @@ import {
   listEnvironments,
   previewGithubBulk,
   removeComponentConfig,
+  reorderEnvironments,
   testConnection,
   updateComponentConfig,
   type ComponentConfigSourceType,
@@ -40,6 +41,8 @@ import {
 import { listProjectAssignments, type AssignmentSummary } from '../api/project-assignments';
 import { listUsers, type UserSummary } from '../api/users';
 import { AccessDrawer } from '../components/AccessDrawer';
+import { DbScriptsSection } from './DbScriptsSection';
+import { GithubBulkEditForm } from './GithubBulkEditForm';
 import { ConfirmDialog } from '../components/ConfirmDialog';
 import { Select } from '../components/Select';
 import { SECRET_REVEAL_DURATION_MS, VARIABLES_PAGE_SIZE } from '../constants';
@@ -205,6 +208,9 @@ export function ProjectDetailPage() {
   // "…requested" instead of inviting a duplicate. Admins act directly and
   // never file requests, so they skip the call.
   const [myPendingKeys, setMyPendingKeys] = useState<Set<string>>(new Set());
+  // Settings → Environments drag and drop: the row being dragged, and the row it's over.
+  const [draggedEnvironmentIndex, setDraggedEnvironmentIndex] = useState<number | null>(null);
+  const [dropTargetIndex, setDropTargetIndex] = useState<number | null>(null);
 
   function refreshProject(): void {
     if (!projectId) return;
@@ -305,6 +311,24 @@ export function ProjectDetailPage() {
       refreshProject();
     } catch (err) {
       showToast(err instanceof ApiError ? err.message : 'Could not delete that environment.', 'error');
+    }
+  }
+
+  // Moves one environment to a new place in the lower → higher order (drag
+  // and drop, or the ↑/↓ buttons). Shown straight away, put back if the
+  // save fails.
+  async function moveEnvironment(fromIndex: number, toIndex: number): Promise<void> {
+    if (!projectId || fromIndex === toIndex) return;
+    const previousOrder = environments;
+    const reordered = [...environments];
+    const [moved] = reordered.splice(fromIndex, 1);
+    reordered.splice(toIndex, 0, moved);
+    setEnvironments(reordered);
+    try {
+      setEnvironments(await reorderEnvironments(projectId, reordered.map((environment) => environment.id)));
+    } catch (err) {
+      setEnvironments(previousOrder);
+      showToast(err instanceof ApiError ? err.message : 'Could not change the environment order.', 'error');
     }
   }
 
@@ -445,6 +469,15 @@ export function ProjectDetailPage() {
           />
         ))}
 
+      {/* Keyed on the environment list so adding or reordering an
+          environment reloads the grid's columns. */}
+      {activeTab === 'db-scripts' && (
+        <DbScriptsSection
+          key={environments.map((environment) => environment.id).join()}
+          projectId={project.id}
+        />
+      )}
+
       {isAdmin && activeTab === 'sources' &&
         (!activeEnvironment ? (
           noEnvironmentMessage
@@ -477,21 +510,82 @@ export function ProjectDetailPage() {
             </SettingsRow>
           )}
 
-          <SettingsRow title="Environments" description="Switch to an environment to see its variables and sources.">
+          <SettingsRow
+            title="Environments"
+            description="Lowest first, e.g. dev → qa → prod. DB Scripts uses this order to spot a script that ran higher up but not lower down."
+          >
             {environments.length === 0 ? (
               noEnvironmentMessage
             ) : (
+              // Native drag and drop for mouse users; the ↑/↓ buttons stay for
+              // keyboard and touch, which HTML drag events don't cover.
               <ul className="settings-environment-list">
                 {environments.map((environment, environmentIndex) => (
-                  <li key={environment.id}>
+                  <li
+                    key={environment.id}
+                    className={[
+                      'settings-environment-item',
+                      draggedEnvironmentIndex === environmentIndex && 'settings-environment-item--dragging',
+                      dropTargetIndex === environmentIndex &&
+                        draggedEnvironmentIndex !== environmentIndex &&
+                        'settings-environment-item--drop-target',
+                    ]
+                      .filter(Boolean)
+                      .join(' ')}
+                    draggable
+                    onDragStart={(event) => {
+                      event.dataTransfer.effectAllowed = 'move';
+                      event.dataTransfer.setData('text/plain', environment.id); // Firefox won't start a drag without data
+                      setDraggedEnvironmentIndex(environmentIndex);
+                    }}
+                    onDragOver={(event) => {
+                      if (draggedEnvironmentIndex === null) return;
+                      event.preventDefault();
+                      setDropTargetIndex(environmentIndex);
+                    }}
+                    onDrop={(event) => {
+                      event.preventDefault();
+                      if (draggedEnvironmentIndex !== null) void moveEnvironment(draggedEnvironmentIndex, environmentIndex);
+                      setDraggedEnvironmentIndex(null);
+                      setDropTargetIndex(null);
+                    }}
+                    onDragEnd={() => {
+                      setDraggedEnvironmentIndex(null);
+                      setDropTargetIndex(null);
+                    }}
+                  >
+                    <span className="settings-environment-grip" title="Drag to reorder" aria-hidden="true">
+                      <GripIcon />
+                    </span>
                     <Link
                       to={`/projects/${projectId}/environments/${environment.id}`}
                       className="settings-environment-row"
+                      draggable={false}
                     >
                       <span className="env-switch-dot" style={{ background: environmentColor(environmentIndex) }} aria-hidden="true" />
                       <span className="settings-environment-name">{environment.name}</span>
                       {environment.id === activeEnvironmentId && <span className="chip">Viewing</span>}
                     </Link>
+                    <span className="settings-environment-order">
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={`Move ${environment.name} lower`}
+                        disabled={environmentIndex === 0}
+                        onClick={() => void moveEnvironment(environmentIndex, environmentIndex - 1)}
+                      >
+                        <ArrowIcon direction="up" />
+                      </button>
+                      <button
+                        type="button"
+                        className="icon-btn"
+                        aria-label={`Move ${environment.name} higher`}
+                        disabled={environmentIndex === environments.length - 1}
+                        onClick={() => void moveEnvironment(environmentIndex, environmentIndex + 1)}
+                      >
+                        <ArrowIcon direction="down" />
+                      </button>
+                    </span>
                   </li>
                 ))}
               </ul>
@@ -519,12 +613,13 @@ export function ProjectDetailPage() {
   );
 }
 
-type ProjectTab = 'variables' | 'sources' | 'settings';
+type ProjectTab = 'variables' | 'db-scripts' | 'sources' | 'settings';
 
 // Sources (wiring) and Settings (project config, access, environments) are
-// Admin concerns; a Member works in Variables only.
+// Admin concerns; a Member works in Variables and DB Scripts.
 const PROJECT_TABS: { id: ProjectTab; label: string; adminOnly: boolean }[] = [
   { id: 'variables', label: 'Variables', adminOnly: false },
+  { id: 'db-scripts', label: 'DB Scripts', adminOnly: false },
   { id: 'sources', label: 'Sources', adminOnly: true },
   { id: 'settings', label: 'Settings', adminOnly: true },
 ];
@@ -968,7 +1063,8 @@ function ConnectionsSummary({
   onCredentialCreated: (credential: CredentialSummary) => void;
 }) {
   const { showToast } = useToast();
-  const [addingConfig, setAddingConfig] = useState<'single' | 'github-bulk' | null>(null);
+  const [addingConfig, setAddingConfig] = useState<'single' | 'github-bulk' | 'github-bulk-edit' | null>(null);
+  const githubConfigCount = configs.filter((config) => config.sourceType === 'github').length;
   const [preselectedComponentId, setPreselectedComponentId] = useState<string | undefined>(undefined);
   const [pendingDeleteConfig, setPendingDeleteConfig] = useState<ComponentConfigSummary | null>(null);
   const unconfigured = project.components.filter(
@@ -1012,14 +1108,23 @@ function ConnectionsSummary({
             {isAdmin && ` ${configs.length} of ${project.components.length} components connected.`}
           </p>
         </div>
-        {isAdmin && unconfigured.length > 0 && !addingConfig && (
+        {isAdmin && !addingConfig && (unconfigured.length > 0 || githubConfigCount >= 2) && (
           <div className="section-heading-actions">
-            <button className="outline-btn" onClick={() => setAddingConfig('github-bulk')}>
-              Connect all from GitHub
-            </button>
-            <button className="project-detail-add-btn" onClick={() => setAddingConfig('single')}>
-              + Connect source
-            </button>
+            {githubConfigCount >= 2 && (
+              <button className="outline-btn" onClick={() => setAddingConfig('github-bulk-edit')}>
+                Edit GitHub connections
+              </button>
+            )}
+            {unconfigured.length > 0 && (
+              <>
+                <button className="outline-btn" onClick={() => setAddingConfig('github-bulk')}>
+                  Connect all from GitHub
+                </button>
+                <button className="project-detail-add-btn" onClick={() => setAddingConfig('single')}>
+                  + Connect source
+                </button>
+              </>
+            )}
           </div>
         )}
       </div>
@@ -1036,6 +1141,18 @@ function ConnectionsSummary({
             onChange();
           }}
           onCredentialCreated={onCredentialCreated}
+        />
+      )}
+      {addingConfig === 'github-bulk-edit' && (
+        <GithubBulkEditForm
+          environmentId={environment.id}
+          configs={configs}
+          credentials={credentials}
+          onCancel={closeForm}
+          onSaved={() => {
+            closeForm();
+            onChange();
+          }}
         />
       )}
       {addingConfig === 'github-bulk' && (
@@ -2888,6 +3005,33 @@ function PlusIcon() {
   return (
     <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
       <path d="M12 5v14M5 12h14" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
+function GripIcon() {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+      <circle cx="9" cy="6" r="1.6" />
+      <circle cx="15" cy="6" r="1.6" />
+      <circle cx="9" cy="12" r="1.6" />
+      <circle cx="15" cy="12" r="1.6" />
+      <circle cx="9" cy="18" r="1.6" />
+      <circle cx="15" cy="18" r="1.6" />
+    </svg>
+  );
+}
+
+function ArrowIcon({ direction }: { direction: 'up' | 'down' }) {
+  return (
+    <svg width="14" height="14" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path
+        d={direction === 'up' ? 'M12 19V5M5 12l7-7 7 7' : 'M12 5v14M5 12l7 7 7-7'}
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
     </svg>
   );
 }

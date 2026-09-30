@@ -19,6 +19,7 @@ import { ProjectAssignmentsModule } from './project-assignments/project-assignme
 import { RequestsModule } from './requests/requests.module';
 import { RequestReviewsModule } from './request-reviews/request-reviews.module';
 import { DiffModule } from './diff/diff.module';
+import { DbScriptsModule } from './db-scripts/db-scripts.module';
 import { JwtAuthGuard } from './common/guards/jwt-auth.guard';
 import { RequestLoggerMiddleware } from './common/middleware/request-logger.middleware';
 
@@ -62,6 +63,7 @@ import { RequestLoggerMiddleware } from './common/middleware/request-logger.midd
     RequestsModule,
     RequestReviewsModule,
     DiffModule,
+    DbScriptsModule,
   ],
   providers: [
     { provide: APP_GUARD, useClass: ThrottlerGuard },

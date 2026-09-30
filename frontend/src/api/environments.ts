@@ -7,6 +7,7 @@ export interface EnvironmentSummary {
   id: string;
   projectId: string;
   name: string;
+  position: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -52,7 +53,11 @@ export const getEnvironment = (id: string) => apiGet<EnvironmentSummary>(`/envir
 export const createEnvironment = (projectId: string, name: string) =>
   apiPost<EnvironmentSummary>(`/projects/${projectId}/environments`, { name });
 
-export const deleteEnvironment = (id: string) => apiDelete<DeleteOutcome>(`/environments/${id}`);
+// Lowest first — the order DB script drift is judged against.
+export const reorderEnvironments = (projectId: string, environmentIds: string[]) =>
+  apiPatch<EnvironmentSummary[]>(`/projects/${projectId}/environments/order`, { environmentIds });
+
+export const deleteEnvironment =(id: string) => apiDelete<DeleteOutcome>(`/environments/${id}`);
 
 export const listComponentConfigs = (environmentId: string) =>
   apiGet<ComponentConfigSummary[]>(`/environments/${environmentId}/components`);
@@ -107,6 +112,31 @@ export interface GithubBulkPreviewRow {
 
 export const previewGithubBulk = (environmentId: string, input: GithubBulkPreviewInput) =>
   apiPost<GithubBulkPreviewRow[]>(`/environments/${environmentId}/components/github-bulk/preview`, input);
+
+// Several GitHub connections of one environment at once; only the fields
+// given change.
+export interface GithubBulkEditInput {
+  configIds: string[];
+  githubRepo?: string;
+  githubBranch?: string;
+  githubCredentialId?: string;
+}
+
+export interface GithubBulkEditCheckRow {
+  configId: string;
+  componentName: string;
+  githubRepo: string;
+  githubBranch: string;
+  paths: string[];
+  status: 'found' | 'not-found' | 'unreachable';
+  message: string | null;
+}
+
+export const checkGithubBulkEdit = (environmentId: string, input: GithubBulkEditInput) =>
+  apiPost<GithubBulkEditCheckRow[]>(`/environments/${environmentId}/github-connections/check`, input);
+
+export const bulkEditGithub = (environmentId: string, input: GithubBulkEditInput) =>
+  apiPatch<ComponentConfigSummary[]>(`/environments/${environmentId}/github-connections`, input);
 
 export const testConnection = (input: TestConnectionInput) =>
   apiPost<{ success: true }>('/environments/test-connection', input);

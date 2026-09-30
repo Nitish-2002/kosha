@@ -20,7 +20,7 @@ export class ProjectEnvironmentLookupRepository {
     if (projectIds.length === 0) return Promise.resolve([]);
     return this.repo.find({
       where: { projectId: In(projectIds) },
-      order: { createdAt: 'ASC' },
+      order: { position: 'ASC', createdAt: 'ASC' },
     });
   }
 }

@@ -10,9 +10,14 @@ import { EnvironmentComponentConfigsRepository } from '../environments/environme
 import { EnvironmentComponentConfig } from '../environments/environment-component-config.entity';
 import { VariablesService } from '../variables/variables.service';
 import { RequestsService } from '../requests/requests.service';
-import { RequestsRepository } from '../requests/requests.repository';
+import {
+  RequestsRepository,
+  RequestTableKind,
+} from '../requests/requests.repository';
 import { DeleteRequest } from '../requests/delete-request.entity';
 import { RollbackRequest } from '../requests/rollback-request.entity';
+import { DbScriptUndoRequest } from '../requests/db-script-undo-request.entity';
+import { DbScriptsService } from '../db-scripts/db-scripts.service';
 
 type Outcome = 'approved' | 'rejected';
 
@@ -30,6 +35,7 @@ export class RequestReviewsService {
     private readonly environmentsService: EnvironmentsService,
     private readonly configsRepository: EnvironmentComponentConfigsRepository,
     private readonly variablesService: VariablesService,
+    private readonly dbScriptsService: DbScriptsService,
     private readonly notifications: NotificationsService,
   ) {}
 
@@ -59,14 +65,55 @@ export class RequestReviewsService {
     if (rollbackRequest) {
       return this.resolveRollback(rollbackRequest, outcome, reviewerId, note);
     }
+    const undoRequest = await this.requestsRepository.findDbScriptUndoById(id);
+    if (undoRequest) {
+      return this.resolveDbScriptUndo(undoRequest, outcome, reviewerId, note);
+    }
     throw new NotFoundException();
+  }
+
+  private async resolveDbScriptUndo(
+    request: DbScriptUndoRequest,
+    outcome: Outcome,
+    reviewerId: string,
+    note?: string,
+  ): Promise<void> {
+    await this.claimAndRun(
+      'db_script_undo',
+      request.id,
+      outcome,
+      reviewerId,
+      note,
+      () =>
+        this.dbScriptsService.setBackToPending(
+          request.scriptId,
+          request.environmentId,
+          reviewerId,
+          { requestId: request.id, requesterId: request.requesterId },
+        ),
+    );
+    if (outcome === 'rejected') {
+      await this.requestsService.recordAudit(
+        reviewerId,
+        'reject',
+        { dbScriptUndoRequest: request },
+        note,
+      );
+    }
+    await this.notifications.createForUsers(
+      [request.requesterId],
+      outcome === 'approved'
+        ? 'db_script_undo_request_approved'
+        : 'db_script_undo_request_rejected',
+      { requestId: request.id },
+    );
   }
 
   // Claim first (atomic), then act: a second concurrent reviewer loses the
   // claim and gets 409 instead of executing the same request again. If the
   // approved action itself fails, the claim is released so it stays pending.
   private async claimAndRun(
-    kind: 'delete' | 'rollback',
+    kind: RequestTableKind,
     id: string,
     outcome: Outcome,
     reviewerId: string,

@@ -165,6 +165,58 @@ export class AuditService {
     row: { action: AuditAction; metadata: Record<string, unknown> | null },
     emailById: Map<string, string>,
   ): string | null {
+    // DB script rows (PRD Feature 12) and the environment reorder that
+    // drives their drift rule.
+    const dbScriptLabel = row.metadata?.dbScriptLabel;
+    if (typeof dbScriptLabel === 'string') {
+      const lowerPending = row.metadata?.lowerPendingEnvironments;
+      if (row.action === 'apply') {
+        return Array.isArray(lowerPending) && lowerPending.length > 0
+          ? `Marked DB script ${dbScriptLabel} applied while ${lowerPending.join(', ')} still pending`
+          : `Marked DB script ${dbScriptLabel} applied`;
+      }
+      if (row.metadata?.undoneApply === true) {
+        const requesterId = row.metadata.requesterId;
+        const onRequestOf =
+          typeof requesterId === 'string'
+            ? ` on request from ${emailById.get(requesterId) ?? '(deleted user)'}`
+            : '';
+        return `Set DB script ${dbScriptLabel} back to pending${onRequestOf} (was marked by ${String(row.metadata.previouslyAppliedByEmail)})`;
+      }
+      if (row.action === 'create') return `Added DB script ${dbScriptLabel}`;
+      const rerun = row.metadata?.rerunAfterRestore;
+      const rerunNote =
+        typeof rerun === 'boolean'
+          ? ` (re-run after every restore turned ${rerun ? 'on' : 'off'})`
+          : '';
+      return `Edited DB script ${dbScriptLabel}${rerunNote}`;
+    }
+    if (row.metadata?.dbRefresh === true) {
+      const scriptsToRun = row.metadata.scriptsToRun;
+      const toRunCount = Array.isArray(scriptsToRun) ? scriptsToRun.length : 0;
+      return `Recorded DB restore from ${String(row.metadata.sourceEnvironmentName)} dump of ${String(row.metadata.dumpTakenOn)} — ${toRunCount} script${toRunCount === 1 ? '' : 's'} to run`;
+    }
+    const githubBulkEdit = row.metadata?.githubBulkEdit;
+    if (githubBulkEdit && typeof githubBulkEdit === 'object') {
+      const labels: Record<string, string> = {
+        githubRepo: 'repo',
+        githubBranch: 'branch',
+        githubCredentialId: 'credential',
+      };
+      return `GitHub connection changed: ${Object.entries(
+        githubBulkEdit as Record<string, { from: string | null; to: string }>,
+      )
+        .map(([field, change]) =>
+          field === 'githubCredentialId'
+            ? 'credential replaced'
+            : `${labels[field]} ${change.from} → ${change.to}`,
+        )
+        .join(', ')}`;
+    }
+    const environmentOrder = row.metadata?.environmentOrder;
+    if (Array.isArray(environmentOrder)) {
+      return `Environment order: ${environmentOrder.join(' → ')}`;
+    }
     if (row.metadata?.secretFlagChanged === true) {
       return row.metadata.isSecret === true
         ? 'Flagged as Secret'
@@ -198,13 +250,19 @@ export class AuditService {
       typeof requesterId === 'string'
         ? (emailById.get(requesterId) ?? '(deleted user)')
         : null;
+    const requestDbScriptLabel = row.metadata?.requestDbScriptLabel;
     if (row.action === 'request') {
+      if (requestKind === 'db_script_undo') {
+        return `Requested undo of DB script ${String(requestDbScriptLabel)} mark: ${String(row.metadata?.reason)}`;
+      }
       return requestKind === 'delete'
         ? `Requested delete of ${String(row.metadata?.targetType)}`
         : 'Requested rollback';
     }
     if (row.action === 'reject') {
-      return `Rejected ${String(requestKind)} request from ${requesterEmail}`;
+      return requestKind === 'db_script_undo'
+        ? `Rejected undo of DB script ${String(requestDbScriptLabel)} mark from ${requesterEmail}`
+        : `Rejected ${String(requestKind)} request from ${requesterEmail}`;
     }
     return requesterEmail ? `Approved request from ${requesterEmail}` : null;
   }

@@ -13,6 +13,10 @@ import { VariableMetadata } from './variables/variable-metadata.entity';
 import { ProjectAssignment } from './project-assignments/project-assignment.entity';
 import { DeleteRequest } from './requests/delete-request.entity';
 import { RollbackRequest } from './requests/rollback-request.entity';
+import { DbScript } from './db-scripts/db-script.entity';
+import { DbScriptState } from './db-scripts/db-script-state.entity';
+import { DbScriptUndoRequest } from './requests/db-script-undo-request.entity';
+import { DbRefresh } from './db-scripts/db-refresh.entity';
 
 // Used only by the `typeorm` CLI (migration:generate/run/revert — see package.json
 // scripts). The running app gets its connection via TypeOrmModule in app.module.ts;
@@ -34,6 +38,10 @@ export default new DataSource({
     ProjectAssignment,
     DeleteRequest,
     RollbackRequest,
+    DbScript,
+    DbScriptState,
+    DbScriptUndoRequest,
+    DbRefresh,
   ],
   migrations: ['src/migrations/*.ts'],
   synchronize: false,

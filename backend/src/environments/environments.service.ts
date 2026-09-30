@@ -29,6 +29,7 @@ import { CreateComponentConfigDto } from './dto/create-component-config.dto';
 import { UpdateComponentConfigDto } from './dto/update-component-config.dto';
 import { TestConnectionDto } from './dto/test-connection.dto';
 import { GithubBulkPreviewDto } from './dto/github-bulk-preview.dto';
+import { GithubBulkEditDto } from './dto/github-bulk-edit.dto';
 
 const UNIQUE_VIOLATION = '23505';
 const FOREIGN_KEY_VIOLATION = '23503';
@@ -37,6 +38,7 @@ export interface EnvironmentSummary {
   id: string;
   projectId: string;
   name: string;
+  position: number;
   createdAt: Date;
   updatedAt: Date;
 }
@@ -62,6 +64,18 @@ export interface ComponentConfigSummary {
 
 export type DeleteOrRequestResult =
   { status: 'deleted' } | { status: 'requested' };
+
+// One connection in a bulk GitHub edit check: would it still find its
+// manifest file(s) with the new repo/branch/credential?
+export interface GithubBulkEditCheckRow {
+  configId: string;
+  componentName: string;
+  githubRepo: string;
+  githubBranch: string;
+  paths: string[];
+  status: 'found' | 'not-found' | 'unreachable';
+  message: string | null;
+}
 
 export interface GithubBulkPreviewRow {
   projectComponentId: string;
@@ -100,7 +114,7 @@ export class EnvironmentsService {
     const rows =
       requester.role === 'admin'
         ? await this.environmentsRepository.findByProject(projectId)
-        : await this.environmentsRepository.findByIdsOrderedByCreatedAt([
+        : await this.environmentsRepository.findByIdsInOrder([
             ...(await this.assignments.assignedEnvironmentIds(
               requester.id,
               projectId,
@@ -128,9 +142,13 @@ export class EnvironmentsService {
     userId: string,
   ): Promise<EnvironmentSummary> {
     const project = await this.findProjectOrFail(projectId);
+    // ponytail: two concurrent creates can land on the same position; the
+    // order is still deterministic (createdAt breaks the tie) and an Admin
+    // reorder fixes it.
     const environment = this.environmentsRepository.create({
       projectId,
       name: dto.name,
+      position: await this.environmentsRepository.nextPosition(projectId),
     });
     let saved: Environment;
     try {
@@ -152,6 +170,42 @@ export class EnvironmentsService {
       metadata: { environmentId: saved.id, name: saved.name },
     });
     return this.toSummary(saved);
+  }
+
+  // The lower → higher order DB script drift is judged against (PRD Feature
+  // 12). The body must name every environment of the project exactly once,
+  // so a stale client can't silently drop one out of the ordering.
+  async reorder(
+    projectId: string,
+    environmentIds: string[],
+    userId: string,
+  ): Promise<EnvironmentSummary[]> {
+    const project = await this.findProjectOrFail(projectId);
+    const current = await this.environmentsRepository.findByProject(projectId);
+    const currentIds = new Set(current.map((environment) => environment.id));
+    const isSameSet =
+      environmentIds.length === current.length &&
+      new Set(environmentIds).size === environmentIds.length &&
+      environmentIds.every((id) => currentIds.has(id));
+    if (!isSameSet) {
+      throw new BadRequestException(
+        "The new order must list each of this project's environments exactly once.",
+      );
+    }
+
+    await this.environmentsRepository.savePositions(environmentIds);
+    const reordered =
+      await this.environmentsRepository.findByProject(projectId);
+    await this.audit.record({
+      userId,
+      action: 'update',
+      projectId,
+      projectNameSnapshot: project.name,
+      metadata: {
+        environmentOrder: reordered.map((environment) => environment.name),
+      },
+    });
+    return reordered.map((environment) => this.toSummary(environment));
   }
 
   // extraMetadata: PRD Feature 6 — an approved DeleteRequest's execution is
@@ -516,6 +570,199 @@ export class EnvironmentsService {
     );
   }
 
+  // Read-only, no AuditLog — like testConnection: with the new values, can
+  // each selected connection still reach its repo+branch and find its
+  // manifest file(s)? Never blocks the save (same as Test Connection).
+  async checkGithubBulkEdit(
+    environmentId: string,
+    dto: GithubBulkEditDto,
+  ): Promise<GithubBulkEditCheckRow[]> {
+    const targets = await this.resolveGithubBulkEdit(environmentId, dto);
+    // One repo+branch check per distinct combination, not per component.
+    const reachability = new Map<string, Promise<string | null>>();
+    const reach = (credential: Credential, repo: string, branch: string) => {
+      const cacheKey = `${credential.id}|${repo}|${branch}`;
+      if (!reachability.has(cacheKey)) {
+        reachability.set(
+          cacheKey,
+          this.testGithubRepo(credential, repo, branch).then(
+            () => null,
+            (error: Error) => error.message,
+          ),
+        );
+      }
+      return reachability.get(cacheKey)!;
+    };
+
+    return Promise.all(
+      targets.map(async ({ config, componentName, next, credential }) => {
+        const paths = [
+          ...new Set(
+            [config.githubConfigmapPath, config.githubSecretPath].filter(
+              (path): path is string => !!path,
+            ),
+          ),
+        ];
+        const row = {
+          configId: config.id,
+          componentName,
+          githubRepo: next.githubRepo,
+          githubBranch: next.githubBranch,
+          paths,
+        };
+        const unreachable = await reach(
+          credential,
+          next.githubRepo,
+          next.githubBranch,
+        );
+        if (unreachable) {
+          return {
+            ...row,
+            status: 'unreachable' as const,
+            message: unreachable,
+          };
+        }
+        const headers = this.githubHeaders(credential);
+        const missing: string[] = [];
+        for (const path of paths) {
+          if (
+            !(await this.githubFileExists(
+              headers,
+              next.githubRepo,
+              next.githubBranch,
+              path,
+            ))
+          ) {
+            missing.push(path);
+          }
+        }
+        return missing.length === 0
+          ? { ...row, status: 'found' as const, message: null }
+          : {
+              ...row,
+              status: 'not-found' as const,
+              message: `Not on this branch: ${missing.join(', ')}`,
+            };
+      }),
+    );
+  }
+
+  // Saves the new repo/branch/credential on every selected connection in
+  // one transaction, then one audit row per connection (CLAUDE.md #2).
+  async bulkEditGithub(
+    environmentId: string,
+    dto: GithubBulkEditDto,
+    userId: string,
+  ): Promise<ComponentConfigSummary[]> {
+    const targets = await this.resolveGithubBulkEdit(environmentId, dto);
+    const changesByConfig = new Map<
+      string,
+      Record<string, { from: string | null; to: string }>
+    >();
+    for (const { config, next } of targets) {
+      const changes: Record<string, { from: string | null; to: string }> = {};
+      for (const field of [
+        'githubRepo',
+        'githubBranch',
+        'githubCredentialId',
+      ] as const) {
+        if (config[field] !== next[field]) {
+          changes[field] = { from: config[field], to: next[field] };
+          config[field] = next[field];
+        }
+      }
+      changesByConfig.set(config.id, changes);
+    }
+
+    const saved = await this.configsRepository.saveMany(
+      targets.map((target) => target.config),
+    );
+    const environment = await this.findOrFail(environmentId);
+    const project = await this.projectsRepository.findById(
+      environment.projectId,
+    );
+    for (const { config, componentName } of targets) {
+      const changes = changesByConfig.get(config.id)!;
+      if (Object.keys(changes).length === 0) continue;
+      await this.audit.record({
+        userId,
+        action: 'update',
+        projectId: environment.projectId,
+        projectNameSnapshot: project?.name,
+        environmentId,
+        environmentNameSnapshot: environment.name,
+        componentName,
+        metadata: { configId: config.id, githubBulkEdit: changes },
+      });
+    }
+    const components = await this.componentsRepository.findByIds(
+      saved.map((config) => config.projectComponentId),
+    );
+    return saved.map((config) => this.toConfigSummary(config, components));
+  }
+
+  private async resolveGithubBulkEdit(
+    environmentId: string,
+    dto: GithubBulkEditDto,
+  ) {
+    if (!dto.githubRepo && !dto.githubBranch && !dto.githubCredentialId) {
+      throw new BadRequestException(
+        'Change at least one of repo, branch or credential.',
+      );
+    }
+    await this.findOrFail(environmentId);
+    const configs =
+      await this.configsRepository.findByEnvironment(environmentId);
+    const configById = new Map(configs.map((config) => [config.id, config]));
+    const selected = [...new Set(dto.configIds)].map((id) => {
+      const config = configById.get(id);
+      if (!config) {
+        throw new NotFoundException(
+          'One of those connections is not in this environment.',
+        );
+      }
+      if (config.sourceType !== 'github') {
+        throw new BadRequestException(
+          'Only GitHub connections can be edited here.',
+        );
+      }
+      return config;
+    });
+    const components = await this.componentsRepository.findByIds(
+      selected.map((config) => config.projectComponentId),
+    );
+    const credentialById = new Map<string, Credential>();
+    const credentialFor = async (credentialId: string) => {
+      if (!credentialById.has(credentialId)) {
+        credentialById.set(
+          credentialId,
+          await this.assertCredentialType(credentialId, 'github'),
+        );
+      }
+      return credentialById.get(credentialId)!;
+    };
+
+    return Promise.all(
+      selected.map(async (config) => {
+        const next = {
+          githubRepo: dto.githubRepo ?? config.githubRepo!,
+          githubBranch: dto.githubBranch ?? config.githubBranch!,
+          githubCredentialId:
+            dto.githubCredentialId ?? config.githubCredentialId!,
+        };
+        return {
+          config,
+          componentName:
+            components.find(
+              (component) => component.id === config.projectComponentId,
+            )?.name ?? '',
+          next,
+          credential: await credentialFor(next.githubCredentialId),
+        };
+      }),
+    );
+  }
+
   private async testS3Bucket(
     credential: Credential,
     bucket: string,
@@ -727,6 +974,7 @@ export class EnvironmentsService {
       id: environment.id,
       projectId: environment.projectId,
       name: environment.name,
+      position: environment.position,
       createdAt: environment.createdAt,
       updatedAt: environment.updatedAt,
     };

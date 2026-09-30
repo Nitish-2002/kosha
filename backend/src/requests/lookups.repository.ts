@@ -6,6 +6,7 @@ import { Project } from '../projects/project.entity';
 import { ProjectComponent } from '../projects/project-component.entity';
 import { Environment } from '../environments/environment.entity';
 import { EnvironmentComponentConfig } from '../environments/environment-component-config.entity';
+import { DbScript } from '../db-scripts/db-script.entity';
 
 // Registered locally (rather than importing Users/Projects/Environments
 // modules) purely to hydrate display names on a request row — Projects,
@@ -75,5 +76,17 @@ export class EnvironmentComponentConfigLookupRepository {
 
   findById(id: string): Promise<EnvironmentComponentConfig | null> {
     return this.repo.findOneBy({ id });
+  }
+}
+
+// Script number + name for a DB script undo request's row ("002 add_…").
+@Injectable()
+export class DbScriptLookupRepository {
+  constructor(
+    @InjectRepository(DbScript) private readonly repo: Repository<DbScript>,
+  ) {}
+
+  findByIds(ids: string[]): Promise<DbScript[]> {
+    return ids.length ? this.repo.findBy({ id: In(ids) }) : Promise.resolve([]);
   }
 }

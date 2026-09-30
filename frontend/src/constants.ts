@@ -69,6 +69,7 @@ export const AUDIT_ACTION_OPTIONS: { value: AuditAction; label: string }[] = [
   { value: 'login', label: 'Login' },
   { value: 'logout', label: 'Logout' },
   { value: 'refresh', label: 'Session refresh' },
+  { value: 'apply', label: 'DB script applied' },
 ];
 
 // MembersPage: sentinel column key in the access-grant matrix meaning "every

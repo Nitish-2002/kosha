@@ -12,3 +12,10 @@ export function formatTimestamp(iso: string): string {
     hour12: false,
   }).format(new Date(iso));
 }
+
+// A plain calendar date ("2026-09-24", e.g. the day a DB dump was taken) as
+// DD/MM/YYYY. No timezone conversion: it names a day, not a moment.
+export function formatCalendarDate(isoDate: string): string {
+  const [year, month, day] = isoDate.slice(0, 10).split('-');
+  return `${day}/${month}/${year}`;
+}

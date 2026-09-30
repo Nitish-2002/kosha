@@ -57,6 +57,13 @@ export class EnvironmentComponentConfigsRepository {
     return this.repo.save(config);
   }
 
+  // TypeORM saves an array in one transaction: all rows or none.
+  saveMany(
+    configs: EnvironmentComponentConfig[],
+  ): Promise<EnvironmentComponentConfig[]> {
+    return this.repo.save(configs);
+  }
+
   remove(
     config: EnvironmentComponentConfig,
   ): Promise<EnvironmentComponentConfig> {

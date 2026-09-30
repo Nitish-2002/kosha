@@ -1,8 +1,9 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
-import { Repository } from 'typeorm';
+import { In, Repository } from 'typeorm';
 import { DeleteRequest, RequestStatus } from './delete-request.entity';
 import { RollbackRequest } from './rollback-request.entity';
+import { DbScriptUndoRequest } from './db-script-undo-request.entity';
 
 export interface ReviewFields {
   status: Exclude<RequestStatus, 'pending'>;
@@ -11,6 +12,8 @@ export interface ReviewFields {
   reviewedAt: Date;
 }
 
+export type RequestTableKind = 'delete' | 'rollback' | 'db_script_undo';
+
 @Injectable()
 export class RequestsRepository {
   constructor(
@@ -18,6 +21,8 @@ export class RequestsRepository {
     private readonly deleteRequests: Repository<DeleteRequest>,
     @InjectRepository(RollbackRequest)
     private readonly rollbackRequests: Repository<RollbackRequest>,
+    @InjectRepository(DbScriptUndoRequest)
+    private readonly dbScriptUndoRequests: Repository<DbScriptUndoRequest>,
   ) {}
 
   createDelete(fields: Partial<DeleteRequest>): Promise<DeleteRequest> {
@@ -26,6 +31,14 @@ export class RequestsRepository {
 
   createRollback(fields: Partial<RollbackRequest>): Promise<RollbackRequest> {
     return this.rollbackRequests.save(this.rollbackRequests.create(fields));
+  }
+
+  createDbScriptUndo(
+    fields: Partial<DbScriptUndoRequest>,
+  ): Promise<DbScriptUndoRequest> {
+    return this.dbScriptUndoRequests.save(
+      this.dbScriptUndoRequests.create(fields),
+    );
   }
 
   findPendingDeletes(): Promise<DeleteRequest[]> {
@@ -39,6 +52,24 @@ export class RequestsRepository {
     return this.rollbackRequests.find({
       where: { status: 'pending' },
       order: { createdAt: 'ASC' },
+    });
+  }
+
+  findPendingDbScriptUndos(): Promise<DbScriptUndoRequest[]> {
+    return this.dbScriptUndoRequests.find({
+      where: { status: 'pending' },
+      order: { createdAt: 'ASC' },
+    });
+  }
+
+  // For the DB Scripts grid's "undo requested" marker.
+  findPendingDbScriptUndosForScripts(
+    scriptIds: string[],
+  ): Promise<DbScriptUndoRequest[]> {
+    if (scriptIds.length === 0) return Promise.resolve([]);
+    return this.dbScriptUndoRequests.findBy({
+      scriptId: In(scriptIds),
+      status: 'pending',
     });
   }
 
@@ -56,6 +87,13 @@ export class RequestsRepository {
     });
   }
 
+  findMineDbScriptUndos(requesterId: string): Promise<DbScriptUndoRequest[]> {
+    return this.dbScriptUndoRequests.find({
+      where: { requesterId },
+      order: { createdAt: 'DESC' },
+    });
+  }
+
   findDeleteById(id: string): Promise<DeleteRequest | null> {
     return this.deleteRequests.findOneBy({ id });
   }
@@ -64,24 +102,27 @@ export class RequestsRepository {
     return this.rollbackRequests.findOneBy({ id });
   }
 
+  findDbScriptUndoById(id: string): Promise<DbScriptUndoRequest | null> {
+    return this.dbScriptUndoRequests.findOneBy({ id });
+  }
+
   // One atomic UPDATE ... WHERE status = 'pending': of two concurrent
   // reviewers only one gets true, so a request is never executed twice.
   async claimPending(
-    kind: 'delete' | 'rollback',
+    kind: RequestTableKind,
     id: string,
     review: ReviewFields,
   ): Promise<boolean> {
-    const repo =
-      kind === 'delete' ? this.deleteRequests : this.rollbackRequests;
-    const result = await repo.update({ id, status: 'pending' }, review);
+    const result = await this.tableFor(kind).update(
+      { id, status: 'pending' },
+      review,
+    );
     return result.affected === 1;
   }
 
   // Undo a claim whose approved action then failed, so the request can be retried.
-  async releaseClaim(kind: 'delete' | 'rollback', id: string): Promise<void> {
-    const repo =
-      kind === 'delete' ? this.deleteRequests : this.rollbackRequests;
-    await repo.update(
+  async releaseClaim(kind: RequestTableKind, id: string): Promise<void> {
+    await this.tableFor(kind).update(
       { id },
       {
         status: 'pending',
@@ -90,5 +131,18 @@ export class RequestsRepository {
         reviewedAt: null,
       },
     );
+  }
+
+  private tableFor(
+    kind: RequestTableKind,
+  ): Repository<DeleteRequest | RollbackRequest | DbScriptUndoRequest> {
+    const tables = {
+      delete: this.deleteRequests,
+      rollback: this.rollbackRequests,
+      db_script_undo: this.dbScriptUndoRequests,
+    };
+    return tables[kind] as Repository<
+      DeleteRequest | RollbackRequest | DbScriptUndoRequest
+    >;
   }
 }

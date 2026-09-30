@@ -376,7 +376,42 @@
   }
 }
 
+.settings-environment-item {
+  display: flex;
+  align-items: center;
+  cursor: grab;
+
+  &--dragging {
+    opacity: 0.4;
+  }
+
+  // Where the dragged row will land.
+  &--drop-target {
+    background: var(--color-red-tint);
+    box-shadow: inset 3px 0 0 var(--color-red);
+  }
+}
+
+.settings-environment-grip {
+  display: inline-flex;
+  padding-left: 14px;
+  color: var(--color-text-muted);
+}
+
+// Up/down order controls beside each environment row (Admin-only tab).
+.settings-environment-order {
+  display: flex;
+  gap: 2px;
+  padding-right: 12px;
+
+  .icon-btn {
+    width: 36px;
+    height: 36px;
+  }
+}
+
 .settings-environment-row {
+  flex-grow: 1;
   display: flex;
   align-items: center;
   gap: 12px;
@@ -627,6 +662,44 @@
       outline-offset: 1px;
     }
   }
+}
+
+// Sources → "Edit GitHub connections" (GithubBulkEditForm).
+.github-bulk-edit {
+  h3 {
+    margin: 0 0 4px;
+  }
+}
+
+.github-bulk-edit-targets {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+
+  legend {
+    padding: 0 0 8px;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+  }
+
+  .variables-checkbox {
+    flex-wrap: wrap;
+  }
+}
+
+.github-bulk-edit-name {
+  font-weight: 600;
+  color: var(--color-white);
+}
+
+.github-bulk-edit-current {
+  color: var(--color-text-muted);
+  font-family: ui-monospace, monospace;
+  font-size: 0.78rem;
+  word-break: break-all;
 }
 
 .add-config-hint {

@@ -17,6 +17,9 @@ import './RequestsPage.scss';
 // project/environment/component/key fields already carry the specifics,
 // this just turns them into a sentence.
 function describeChangeRequest(item: RequestItem): string {
+  if (item.kind === 'db_script_undo') {
+    return `Set DB script ${item.dbScriptLabel ?? ''} back to pending in ${item.environmentName ?? 'this environment'}`;
+  }
   if (item.kind === 'rollback') {
     return item.key ? `Roll back "${item.key}" to an earlier version` : 'Roll back the whole file to an earlier version';
   }
@@ -49,7 +52,7 @@ export function RequestsPage() {
     <div className="requests-page">
       <div className="requests-header">
         <h1>Requests</h1>
-        <p>Access requests and Member-filed delete/rollback requests, waiting on your approval.</p>
+        <p>Access requests and Member-filed delete, rollback and DB script undo requests, waiting on your approval.</p>
       </div>
 
       <div className="requests-tabs">
@@ -63,7 +66,7 @@ export function RequestsPage() {
           className={tab === 'changes' ? 'requests-tab requests-tab--active' : 'requests-tab'}
           onClick={() => setTab('changes')}
         >
-          Delete &amp; rollback
+          Delete, rollback &amp; undo
         </button>
       </div>
 
@@ -196,7 +199,7 @@ function ChangeRequestsTab() {
   }
 
   if (loading) return <p className="requests-empty">Loading…</p>;
-  if (requests.length === 0) return <p className="requests-empty">No pending delete/rollback requests.</p>;
+  if (requests.length === 0) return <p className="requests-empty">No pending delete, rollback or undo requests.</p>;
 
   return (
     <ul className="requests-list">
@@ -207,6 +210,7 @@ function ChangeRequestsTab() {
             <span className="requests-meta">
               {[item.projectName, item.environmentName].filter(Boolean).join(' / ')}
             </span>
+            {item.reason && <span className="requests-meta">Reason: {item.reason}</span>}
             <span className="requests-meta">
               Requested by {item.requesterEmail} — {formatTimestamp(item.createdAt)}
             </span>

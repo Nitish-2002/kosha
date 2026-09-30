@@ -17,6 +17,11 @@ export class Environment {
   @Column()
   name!: string;
 
+  // Admin-set lower → higher order within the project (dev → qa → prod).
+  // DB script drift is judged against it (PRD Feature 12).
+  @Column({ type: 'integer', default: 0 })
+  position!: number;
+
   @CreateDateColumn()
   createdAt!: Date;
 

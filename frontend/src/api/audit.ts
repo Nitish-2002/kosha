@@ -11,7 +11,8 @@ export type AuditAction =
   | 'reject'
   | 'login'
   | 'logout'
-  | 'refresh';
+  | 'refresh'
+  | 'apply';
 
 export interface AuditLogEntry {
   id: string;

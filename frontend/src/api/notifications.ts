@@ -9,7 +9,10 @@ export type NotificationType =
   | 'delete_request_rejected'
   | 'rollback_request_created'
   | 'rollback_request_approved'
-  | 'rollback_request_rejected';
+  | 'rollback_request_rejected'
+  | 'db_script_undo_request_created'
+  | 'db_script_undo_request_approved'
+  | 'db_script_undo_request_rejected';
 
 export interface NotificationItem {
   id: string;

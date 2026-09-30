@@ -172,6 +172,12 @@ function describeNotification(notification: NotificationItem): string {
       return 'Your rollback request was approved.';
     case 'rollback_request_rejected':
       return 'Your rollback request was rejected.';
+    case 'db_script_undo_request_created':
+      return 'A request to undo a DB script mark needs your review.';
+    case 'db_script_undo_request_approved':
+      return 'Your DB script undo request was approved — it is pending again.';
+    case 'db_script_undo_request_rejected':
+      return 'Your DB script undo request was rejected.';
     default:
       return 'New notification.';
   }

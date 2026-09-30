@@ -32,6 +32,7 @@ Exactly two roles. No per-project owner tier, no read-only auditor tier — thos
 - **AuditLog** — append-only. Every create, update, delete, rollback, reveal, and import is recorded with user, project, environment, key, and timestamp.
 - **Credential** — a saved AWS access key/secret key pair, or a GitHub PAT, managed by Admins only in the Credentials tab. Referenced by id from environment/component configs — never inlined, never duplicated per environment. When configuring an S3 or GitHub connection, the UI lists every saved credential of the matching type to pick from. Deleting a credential warns the Admin first, listing every environment/component config that references it — it's still a plain delete after that, not a hard block; Kosha doesn't auto-migrate or fix up the affected configs.
 - **DeleteRequest / RollbackRequest** — a Member's request for a destructive action, held pending Admin approval or rejection.
+- **DB script** — a numbered SQL script belonging to a project, plus a record of which of the project's environments it has been run in. Kosha only tracks scripts; it never connects to or runs anything against a database, and stores no database connection details. See [DB script tracking](#12-db-script-tracking).
 
 ## Features
 
@@ -64,7 +65,7 @@ Exactly two roles. No per-project owner tier, no read-only auditor tier — thos
 - Version history is retained for 7 days (see [TRD — Retention](TRD.md#retention)).
 
 ### 6. Delete / rollback approval workflow
-- Any delete (of a variable, environment, or project) or rollback initiated by a Member creates a pending request instead of executing immediately.
+- Any delete (of a variable, environment, project, or a not-yet-applied DB script), rollback, or DB script undo-mark initiated by a Member creates a pending request instead of executing immediately.
 - Admins see pending requests in-app and via Google Chat notification, and approve or reject with an optional note.
 - The requester is notified of the outcome. Approved requests execute and are logged with both the requester and the approver.
 
@@ -93,9 +94,62 @@ Exactly two roles. No per-project owner tier, no read-only auditor tier — thos
 ### 11. Notifications
 - In-app bell + Google Chat webhook, covering three kinds of events:
   1. A non-whitelisted sign-in creates a pending access request → notifies Admins.
-  2. A Member submits a Delete or Rollback request → notifies Admins.
+  2. A Member submits a Delete, Rollback, or DB script undo request → notifies Admins.
   3. An Admin approves or rejects a request → notifies the original requester.
 - Read in full on the in-app notifications page; the Chat webhook is a best-effort mirror of the same events (see [TRD — Non-functional requirements](TRD.md#non-functional-requirements)).
+
+### 12. DB script tracking
+
+**Problem.** Developers run DB scripts by hand in each environment as code is promoted. Scripts get run in one environment (e.g. qa) and forgotten in another (e.g. dev); some scripts aren't meant for every environment; and restoring an environment from another environment's dump silently changes which scripts its database has. Nobody has one place that says which script ran where.
+
+**Approach.** Kosha is the record, not the runner. People run the SQL themselves with their own DB tools, then mark it in Kosha. One database per environment, so scripts belong to the project — there is no per-component or per-database target.
+
+**Scripts**
+- A project has an ordered list of scripts, numbered automatically (`001`, `002`, …). Each has a name, the SQL, who added it, and when.
+- The SQL is pasted in, or filled from an uploaded `.sql` file. It's stored as text in Kosha; the file itself isn't kept.
+- **Applies to**: every environment by default; the author unticks environments that don't need the script (e.g. demo seed data not meant for prod). Unticked environments show as *N/A* and never count as missing.
+- **Re-run after every restore**: an optional flag for scripts like anonymisation that must run again whenever an environment's database is restored from a dump.
+- The SQL is visible to everyone who can see the project. Scripts must not contain passwords, keys or other secrets — the Add form says so.
+- **Copy SQL** and **Download `.sql`** are available on every script, for every role.
+
+**Duplicates are blocked**
+- A script name must be unique within its project.
+- A script's SQL must not be identical to another script in the same project. Differences in whitespace, blank lines and a trailing `;` are ignored when comparing; letter case is not (so `'Demo'` and `'demo'` stay different). The error names the existing script and links to it. Near-duplicates aren't detected.
+- The same checks apply when editing a script.
+
+**Editing and deleting**
+- A script's SQL can be edited only while it hasn't been applied in any environment. Once applied anywhere it's locked; a fix is a new script (the panel offers **Copy as new script**).
+- A script can be deleted only while it hasn't been applied in any environment. A Member's delete goes through the [approval workflow](#6-delete--rollback-approval-workflow); an Admin deletes directly. An applied script is never deleted, so the record of what ran is never lost.
+
+**Marking a script as applied**
+- Whoever runs a script in an environment — Member or Admin, prod included — marks that environment **applied**. Kosha records who and when.
+- Environments have an Admin-set order, lowest to highest (e.g. dev → qa → preprod → prod), used for the drift rule below.
+- **Drift warning**: marking an environment applied while a lower environment is still pending first asks for confirmation ("dev hasn't run this yet. Mark qa anyway?"). Choosing **Mark anyway** is recorded in the audit log.
+- **Drift display**: a pending environment that sits below an environment where the script is already applied shows as a red **Missing** cell, until someone runs it there and marks it.
+- **Undo a wrong mark**: a Member requests **undo** (with a reason) and an Admin approves or rejects it; on approval the environment goes back to pending. An Admin can set a mark back to pending directly.
+
+**Main screen — DB Scripts tab on a project**
+- A grid: scripts as rows (in order), environments as columns (in order). Each cell is *Applied* (with date), *Pending*, *Missing* (drift) or *N/A*.
+- Counts of drift and pending at the top, and a **Show drift only** filter.
+- Selecting a script opens its detail: SQL, author, Copy / Download / Edit, and each environment's state with who marked it and when, plus that environment's action (**Mark applied**, **Request undo**, or for Admins **Set to pending**).
+
+**Environment restored from a dump (Admin-only)**
+- When an environment's database is restored from another environment's dump (prod, preprod, uat, or any other), an Admin records it with **Record DB refresh**: source environment, restored environment, and dump date.
+- Before confirming, Kosha previews the result for every script. The restored environment then takes the source environment's states:
+  - applied in the source → applied in the restored environment (shown as carried over from the dump);
+  - not applied in the source → pending in the restored environment;
+  - N/A for the restored environment → stays N/A;
+  - flagged *Re-run after every restore* → always pending, whatever the source.
+- The environment's column shows when and from where it was last restored.
+
+**New environment**
+- A new environment is always built from an existing environment's dump. When an Admin creates an environment in a project that already has scripts, they pick **Created from the dump of** (defaulting to the environment just below it in the order); the new environment's script states are set by the same rules as a DB refresh.
+
+**Access**
+- Who added a script and who marked each environment applied (their email) is shown to Members as well as Admins — a deliberate exception to Members otherwise never seeing other users, because the team needs to know who ran what.
+- Members see and mark only the environment columns they're assigned. Environments outside their assignment aren't shown or hinted at, and any request against them is a flat `403`. Drift for a Member is judged only across the environments they can see.
+- Every add, edit, delete, mark, undo, DB refresh and "Mark anyway" is written to the audit log.
+- Script records and their per-environment state are kept permanently — not subject to the 7-day audit retention — so "what ran where" never expires.
 
 ## Session policy
 
@@ -119,3 +173,4 @@ Exactly two roles. No per-project owner tier, no read-only auditor tier — thos
 
 - Audit log entries: retained 7 days.
 - S3 object version history: retained 7 days (via S3 lifecycle rules on the versioned bucket).
+- DB scripts and their per-environment applied state: kept permanently (see [DB script tracking](#12-db-script-tracking)).

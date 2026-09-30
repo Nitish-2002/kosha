@@ -1,0 +1,722 @@
+// DB Scripts tab (PRD Feature 12). Form fields, buttons, chips and the
+// table card reuse ProjectDetailPage.scss / global.scss classes; only the
+// grid, cell states and detail panel live here.
+
+.db-scripts-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  margin-top: 8px;
+}
+
+.db-scripts-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.db-scripts-toolbar-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-left: auto;
+}
+
+// ---- Filters (same shape as the Compare page, red/black palette only) ----
+
+.db-scripts-filters {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.db-scripts-stats {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.db-scripts-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 6px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-black-soft);
+  color: var(--color-white);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--color-red-muted);
+  }
+
+  &--active,
+  &--active:hover {
+    border-color: var(--color-red);
+    background: var(--color-red-tint);
+  }
+}
+
+.db-scripts-stat-label {
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+}
+
+.db-scripts-stat-count {
+  font-size: 1.4rem;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+
+  .db-scripts-stat--missing & {
+    color: var(--color-red-glow);
+  }
+}
+
+.db-scripts-filter-row {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.db-scripts-environment-filter {
+  width: 280px;
+  max-width: 100%;
+
+  .select-trigger {
+    height: 40px;
+    border-radius: 10px;
+    background: var(--color-black-soft);
+  }
+}
+
+// Grid on the left, detail panel on the right; stacked below 1024px.
+.db-scripts-layout {
+  display: flex;
+  align-items: flex-start;
+  gap: 20px;
+}
+
+.db-scripts-main {
+  flex-grow: 1;
+  min-width: 0;
+}
+
+.db-scripts-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 0.85rem;
+
+  thead th {
+    padding: 10px 12px;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    text-align: left;
+    background: var(--color-black-elevated);
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  tbody th,
+  td {
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  thead th + th,
+  td {
+    border-left: 1px solid var(--color-border);
+  }
+
+  tbody tr:last-child th,
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+
+  tbody th {
+    padding: 0;
+    font-weight: 400;
+    text-align: left;
+  }
+}
+
+.db-scripts-row--selected th {
+  background: var(--color-red-tint-subtle);
+  box-shadow: inset 3px 0 0 var(--color-red);
+}
+
+.db-scripts-env-heading {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  text-transform: none;
+  font-size: 0.85rem;
+  color: var(--color-white);
+}
+
+.db-scripts-name-btn {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  width: 100%;
+  min-height: 56px;
+  padding: 10px 14px;
+  border: 0;
+  background: none;
+  color: var(--color-white);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+
+  &:hover {
+    background: var(--color-black-elevated);
+  }
+
+  &:focus-visible {
+    outline: 2px solid var(--color-red-glow);
+    outline-offset: -2px;
+  }
+}
+
+.db-scripts-name {
+  font-family: ui-monospace, monospace;
+  word-break: break-all;
+}
+
+.db-scripts-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+
+  &:empty {
+    display: none;
+  }
+}
+
+.db-scripts-cell {
+  padding: 10px 12px;
+  white-space: nowrap;
+
+  > * + * {
+    margin-left: 6px;
+  }
+
+  svg {
+    vertical-align: -2px;
+  }
+
+  &--applied {
+    color: var(--color-white);
+  }
+
+  &--pending {
+    color: var(--color-text-muted);
+  }
+
+  &--missing {
+    color: var(--color-red-glow);
+    font-weight: 600;
+    background: var(--color-red-tint);
+    box-shadow: inset 0 0 0 1px var(--color-red-muted);
+  }
+
+  &--not_applicable {
+    color: var(--color-text-muted);
+    opacity: 0.6;
+  }
+}
+
+.db-scripts-cell-date {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+}
+
+.db-scripts-legend {
+  margin: 10px 0 0;
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+
+  strong {
+    color: var(--color-red-glow);
+  }
+}
+
+.db-script-detail {
+  flex-shrink: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  width: 400px;
+  padding: 20px;
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  background: var(--color-black-soft);
+}
+
+.db-script-detail-header {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  h2 {
+    margin: 0;
+    font-size: 1.05rem;
+    font-family: ui-monospace, monospace;
+    word-break: break-all;
+  }
+
+  span {
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+    word-break: break-word;
+  }
+}
+
+.db-script-detail-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.db-script-detail-note {
+  margin: 0;
+  padding: 10px 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-black-elevated);
+  color: var(--color-text-muted);
+  font-size: 0.8rem;
+  line-height: 1.5;
+}
+
+.db-script-sql {
+  max-height: 260px;
+  margin: 0;
+  padding: 12px;
+  overflow: auto;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-black);
+  font-family: ui-monospace, monospace;
+  font-size: 0.8rem;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.db-script-env-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+
+  li {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    min-height: 56px;
+    padding: 8px 0;
+    border-top: 1px solid var(--color-border);
+  }
+}
+
+// The env row wraps so the Member's undo reason form drops to its own line.
+.db-script-env-list li {
+  flex-wrap: wrap;
+}
+
+.db-script-undo-form {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  width: 100%;
+
+  label {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+    color: var(--color-text-muted);
+    font-size: 0.8rem;
+  }
+
+  input {
+    padding: 9px 12px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius);
+    background: var(--color-black);
+    color: var(--color-white);
+    font: inherit;
+    font-size: 0.85rem;
+
+    &:focus-visible {
+      outline: 2px solid var(--color-red-glow);
+      outline-offset: 1px;
+    }
+  }
+}
+
+.db-script-undo-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+}
+
+.db-script-env-text {
+  display: flex;
+  flex-grow: 1;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.db-script-env-name {
+  font-weight: 600;
+}
+
+.db-script-env-status {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+
+  &--missing {
+    color: var(--color-red-glow);
+  }
+}
+
+.db-script-env-meta {
+  color: var(--color-text-muted);
+  font-size: 0.75rem;
+  word-break: break-word;
+}
+
+.db-script-form {
+  h3 {
+    margin: 0;
+  }
+
+  // .variables-form gives every input padding and a border, which stretched
+  // the checkboxes into wide pills — put them back to the global 16px box.
+  input[type='checkbox'] {
+    width: 16px;
+    height: 16px;
+    padding: 0;
+    border-radius: 4px;
+  }
+
+  // Locked name/SQL: visibly not editable.
+  input[readonly],
+  textarea[readonly] {
+    border-style: dashed;
+    background: var(--color-black-soft);
+    color: var(--color-text-muted);
+    cursor: not-allowed;
+
+    &:focus-visible {
+      outline: none;
+    }
+  }
+}
+
+.db-script-form-locked {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+
+  svg {
+    flex-shrink: 0;
+    margin-top: 2px;
+  }
+}
+
+.db-script-form-sql {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+
+  textarea:not([readonly]) {
+    min-height: 200px;
+  }
+}
+
+.db-script-form-sql-header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+// The native file input stays in the DOM (keyboard + screen readers reach it
+// through the label) but is visually replaced by the button-styled label.
+.db-script-upload {
+  position: relative;
+  flex-direction: row !important;
+  color: var(--color-white) !important;
+
+  input {
+    position: absolute;
+    width: 1px;
+    height: 1px;
+    opacity: 0;
+  }
+
+  &:focus-within {
+    outline: 2px solid var(--color-red-glow);
+    outline-offset: 2px;
+  }
+}
+
+.db-script-form-applies {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  border: 0;
+
+  legend {
+    padding: 0 0 8px;
+    font-size: 0.85rem;
+    color: var(--color-text-muted);
+  }
+}
+
+.db-script-form-env-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 8px;
+}
+
+// One "Applies to" tile: [checkbox] [dot] name ……… [Ran here]
+.db-script-form .db-script-form-env {
+  flex-direction: row;
+  align-items: center;
+  gap: 10px;
+  min-height: 48px;
+  padding: 0 12px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-black);
+  color: var(--color-white);
+  cursor: pointer;
+
+  &:hover {
+    border-color: var(--color-red-muted);
+  }
+
+  &--ran {
+    cursor: not-allowed;
+
+    &:hover {
+      border-color: var(--color-border);
+    }
+  }
+}
+
+.db-script-form-env-name {
+  flex-grow: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+// The "Re-run after every restore" option: a tile with a title + explanation.
+.db-script-form .db-script-form-option {
+  flex-direction: row;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 14px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  background: var(--color-black);
+  cursor: pointer;
+
+  input {
+    margin-top: 2px;
+  }
+
+  &:has(input:checked) {
+    border-color: var(--color-red-muted);
+    background: var(--color-red-tint-subtle);
+  }
+}
+
+.db-script-form-option-text {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  line-height: 1.5;
+}
+
+.db-script-form-option-title {
+  color: var(--color-white);
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+.db-script-form-hint {
+  color: var(--color-text-muted);
+  font-size: 0.78rem;
+}
+
+.db-scripts-env-heading .icon-btn {
+  width: 28px;
+  height: 28px;
+}
+
+// "Restored from prod · 24/09/2026" under an environment's column name.
+.db-scripts-env-refresh {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.7rem;
+  font-weight: 400;
+  letter-spacing: 0;
+  text-transform: none;
+  color: var(--color-text-muted);
+}
+
+// ---- Record DB refresh (DbRefreshPanel) ----
+
+.db-refresh-panel-heading {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+
+  h3 {
+    margin: 0;
+  }
+
+  p {
+    margin: 0;
+    color: var(--color-text-muted);
+    font-size: 0.85rem;
+    line-height: 1.5;
+  }
+}
+
+.db-refresh-fields {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.db-refresh-table {
+  width: 100%;
+  min-width: 560px;
+  border-collapse: collapse;
+  font-size: 0.82rem;
+
+  th,
+  td {
+    padding: 10px 12px;
+    text-align: left;
+    border-bottom: 1px solid var(--color-border);
+  }
+
+  thead th {
+    font-size: 0.7rem;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+    text-transform: uppercase;
+    color: var(--color-text-muted);
+    background: var(--color-black-elevated);
+  }
+
+  tbody th {
+    font-weight: 400;
+  }
+
+  td {
+    color: var(--color-text-muted);
+  }
+
+  tbody tr:last-child th,
+  tbody tr:last-child td {
+    border-bottom: 0;
+  }
+}
+
+.db-refresh-to-run {
+  color: var(--color-red-glow) !important;
+  font-weight: 600;
+}
+
+.db-refresh-summary {
+  margin: 0;
+  font-size: 0.85rem;
+}
+
+// "Run these N in qa" strip, shown while the environment filter is set.
+.db-run-list {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 12px 16px;
+  border: 1px solid var(--color-red-muted);
+  border-radius: 12px;
+  background: var(--color-red-tint-subtle);
+  font-size: 0.88rem;
+}
+
+.db-run-list-link {
+  padding: 0;
+  border: 0;
+  background: none;
+  color: var(--color-white);
+  font-family: ui-monospace, monospace;
+  font-size: 0.85rem;
+  text-align: left;
+  text-decoration: underline;
+  text-decoration-color: var(--color-border);
+  text-underline-offset: 3px;
+  cursor: pointer;
+  word-break: break-all;
+
+  &:hover {
+    text-decoration-color: var(--color-red);
+  }
+}
+
+@media (max-width: 640px) {
+  .db-scripts-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .db-scripts-search,
+  .db-scripts-environment-filter {
+    flex: 1 1 100%;
+    max-width: none;
+    width: 100%;
+  }
+}
+
+@media (max-width: 1024px) {
+  .db-scripts-layout {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .db-script-detail {
+    width: 100%;
+  }
+}
+
+@media (max-width: 480px) {
+  .db-scripts-toolbar-actions {
+    width: 100%;
+    margin-left: 0;
+
+    > * {
+      flex: 1 1 auto;
+    }
+  }
+}

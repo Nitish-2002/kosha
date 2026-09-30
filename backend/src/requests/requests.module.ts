@@ -10,10 +10,13 @@ import { Environment } from '../environments/environment.entity';
 import { EnvironmentComponentConfig } from '../environments/environment-component-config.entity';
 import { DeleteRequest } from './delete-request.entity';
 import { RollbackRequest } from './rollback-request.entity';
+import { DbScriptUndoRequest } from './db-script-undo-request.entity';
+import { DbScript } from '../db-scripts/db-script.entity';
 import { RequestsController } from './requests.controller';
 import { RequestsService } from './requests.service';
 import { RequestsRepository } from './requests.repository';
 import {
+  DbScriptLookupRepository,
   EnvironmentComponentConfigLookupRepository,
   EnvironmentLookupRepository,
   ProjectComponentLookupRepository,
@@ -31,6 +34,8 @@ import {
     TypeOrmModule.forFeature([
       DeleteRequest,
       RollbackRequest,
+      DbScriptUndoRequest,
+      DbScript,
       User,
       Project,
       ProjectComponent,
@@ -50,6 +55,7 @@ import {
     EnvironmentLookupRepository,
     ProjectComponentLookupRepository,
     EnvironmentComponentConfigLookupRepository,
+    DbScriptLookupRepository,
   ],
   // RequestsRepository exported too: RequestReviewsModule needs the same
   // pending/find-by-id access to approve/reject, without duplicating it.

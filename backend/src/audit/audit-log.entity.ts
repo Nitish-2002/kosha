@@ -16,7 +16,9 @@ export type AuditAction =
   | 'reject'
   | 'login'
   | 'logout'
-  | 'refresh';
+  | 'refresh'
+  // A DB script marked as run in an environment (PRD Feature 12).
+  | 'apply';
 
 // Actions that don't change any project data — excluded from "last changed".
 export const NON_WRITE_ACTIONS: AuditAction[] = [

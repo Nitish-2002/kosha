@@ -12,7 +12,9 @@ import {
   RequestStatus,
 } from './delete-request.entity';
 import { RollbackRequest } from './rollback-request.entity';
+import { DbScriptUndoRequest } from './db-script-undo-request.entity';
 import {
+  DbScriptLookupRepository,
   EnvironmentComponentConfigLookupRepository,
   EnvironmentLookupRepository,
   ProjectComponentLookupRepository,
@@ -22,9 +24,20 @@ import {
 
 const UNIQUE_VIOLATION = '23505';
 
+export type RequestKind = 'delete' | 'rollback' | 'db_script_undo';
+
+type CreatedNotificationType =
+  | 'delete_request_created'
+  | 'rollback_request_created'
+  | 'db_script_undo_request_created';
+
 export interface RequestListItem {
   id: string;
-  kind: 'delete' | 'rollback';
+  kind: RequestKind;
+  // db_script_undo only: which script, and why the Member says it never ran.
+  dbScriptId: string | null;
+  dbScriptLabel: string | null;
+  reason: string | null;
   requesterId: string;
   requesterEmail: string;
   targetType: DeleteRequestTargetType | null;
@@ -61,6 +74,7 @@ export class RequestsService {
     private readonly environmentLookup: EnvironmentLookupRepository,
     private readonly componentLookup: ProjectComponentLookupRepository,
     private readonly configLookup: EnvironmentComponentConfigLookupRepository,
+    private readonly dbScriptLookup: DbScriptLookupRepository,
     private readonly users: UsersService,
     private readonly notifications: NotificationsService,
     private readonly chat: GoogleChatService,
@@ -87,19 +101,57 @@ export class RequestsService {
     return saved;
   }
 
+  async createDbScriptUndoRequest(
+    requesterId: string,
+    scriptId: string,
+    environmentId: string,
+    reason: string,
+  ): Promise<DbScriptUndoRequest> {
+    const saved = await this.rejectDuplicate(() =>
+      this.requestsRepository.createDbScriptUndo({
+        requesterId,
+        scriptId,
+        environmentId,
+        reason,
+      }),
+    );
+    await this.recordAudit(requesterId, 'request', {
+      dbScriptUndoRequest: saved,
+    });
+    await this.notifyAdminsCreated('db_script_undo_request_created', saved.id);
+    return saved;
+  }
+
+  // "scriptId:environmentId" of every pending undo request on these
+  // scripts, so the grid can show "undo requested" instead of inviting a
+  // duplicate.
+  async pendingDbScriptUndoKeys(scriptIds: string[]): Promise<Set<string>> {
+    const pending =
+      await this.requestsRepository.findPendingDbScriptUndosForScripts(
+        scriptIds,
+      );
+    return new Set(
+      pending.map((request) => `${request.scriptId}:${request.environmentId}`),
+    );
+  }
+
   // Audit row for a request being raised or rejected. The action executed on
   // approval is logged by the service that performs it (with requesterId).
   async recordAudit(
     userId: string,
     action: 'request' | 'reject',
     request:
-      { deleteRequest: DeleteRequest } | { rollbackRequest: RollbackRequest },
+      | { deleteRequest: DeleteRequest }
+      | { rollbackRequest: RollbackRequest }
+      | { dbScriptUndoRequest: DbScriptUndoRequest },
     reviewerNote?: string,
   ): Promise<void> {
     const [item] =
       'deleteRequest' in request
-        ? await this.hydrate([request.deleteRequest], [])
-        : await this.hydrate([], [request.rollbackRequest]);
+        ? await this.hydrate([request.deleteRequest], [], [])
+        : 'rollbackRequest' in request
+          ? await this.hydrate([], [request.rollbackRequest], [])
+          : await this.hydrate([], [], [request.dbScriptUndoRequest]);
     await this.audit.record({
       userId,
       action,
@@ -115,6 +167,8 @@ export class RequestsService {
         targetType: item.targetType,
         requesterId: item.requesterId,
         ...(item.targetVersionId && { targetVersionId: item.targetVersionId }),
+        ...(item.dbScriptLabel && { requestDbScriptLabel: item.dbScriptLabel }),
+        ...(item.reason && { reason: item.reason }),
         ...(reviewerNote && { reviewerNote }),
       },
     });
@@ -155,23 +209,25 @@ export class RequestsService {
   }
 
   async listPending(): Promise<RequestListItem[]> {
-    const [deletes, rollbacks] = await Promise.all([
+    const [deletes, rollbacks, undos] = await Promise.all([
       this.requestsRepository.findPendingDeletes(),
       this.requestsRepository.findPendingRollbacks(),
+      this.requestsRepository.findPendingDbScriptUndos(),
     ]);
-    return this.hydrate(deletes, rollbacks);
+    return this.hydrate(deletes, rollbacks, undos);
   }
 
   async listMine(requesterId: string): Promise<RequestListItem[]> {
-    const [deletes, rollbacks] = await Promise.all([
+    const [deletes, rollbacks, undos] = await Promise.all([
       this.requestsRepository.findMineDeletes(requesterId),
       this.requestsRepository.findMineRollbacks(requesterId),
+      this.requestsRepository.findMineDbScriptUndos(requesterId),
     ]);
-    return this.hydrate(deletes, rollbacks);
+    return this.hydrate(deletes, rollbacks, undos);
   }
 
   private async notifyAdminsCreated(
-    type: 'delete_request_created' | 'rollback_request_created',
+    type: CreatedNotificationType,
     requestId: string,
   ): Promise<void> {
     const admins = await this.users.findAdmins();
@@ -181,8 +237,13 @@ export class RequestsService {
       { requestId },
     );
     const url = `${primaryFrontendUrl(this.config)}/requests`;
+    const requestName: Record<CreatedNotificationType, string> = {
+      delete_request_created: 'delete',
+      rollback_request_created: 'rollback',
+      db_script_undo_request_created: 'DB script undo',
+    };
     await this.chat.notify(
-      `New Kosha ${type === 'delete_request_created' ? 'delete' : 'rollback'} request. Review: ${url}`,
+      `New Kosha ${requestName[type]} request. Review: ${url}`,
     );
   }
 
@@ -193,15 +254,23 @@ export class RequestsService {
   private async hydrate(
     deletes: DeleteRequest[],
     rollbacks: RollbackRequest[],
+    undos: DbScriptUndoRequest[],
   ): Promise<RequestListItem[]> {
     const configIds = [
       ...new Set(rollbacks.map((r) => r.environmentComponentConfigId)),
     ];
-    const configs = await this.configLookup.findByIds(configIds);
+    const [configs, scripts] = await Promise.all([
+      this.configLookup.findByIds(configIds),
+      this.dbScriptLookup.findByIds([
+        ...new Set(undos.map((row) => row.scriptId)),
+      ]),
+    ]);
     const configById = new Map(configs.map((c) => [c.id, c]));
+    const scriptById = new Map(scripts.map((script) => [script.id, script]));
 
     const environmentIds = new Set<string>();
     const componentIds = new Set<string>();
+    for (const row of undos) environmentIds.add(row.environmentId);
     for (const row of deletes) {
       if (row.environmentId) environmentIds.add(row.environmentId);
       if (row.projectComponentId) componentIds.add(row.projectComponentId);
@@ -235,8 +304,10 @@ export class RequestsService {
           [
             ...deletes.map((r) => r.requesterId),
             ...rollbacks.map((r) => r.requesterId),
+            ...undos.map((r) => r.requesterId),
             ...deletes.map((r) => r.reviewerId),
             ...rollbacks.map((r) => r.reviewerId),
+            ...undos.map((r) => r.reviewerId),
           ].filter((id): id is string => id !== null),
         ),
       ]),
@@ -253,6 +324,9 @@ export class RequestsService {
       return {
         id: row.id,
         kind: 'delete',
+        dbScriptId: null,
+        dbScriptLabel: null,
+        reason: null,
         requesterId: row.requesterId,
         requesterEmail: emailById.get(row.requesterId) ?? '(deleted user)',
         targetType: row.targetType,
@@ -290,6 +364,9 @@ export class RequestsService {
       return {
         id: row.id,
         kind: 'rollback',
+        dbScriptId: null,
+        dbScriptLabel: null,
+        reason: null,
         requesterId: row.requesterId,
         requesterEmail: emailById.get(row.requesterId) ?? '(deleted user)',
         targetType: null,
@@ -320,7 +397,43 @@ export class RequestsService {
       };
     });
 
-    return [...deleteItems, ...rollbackItems].sort(
+    const undoItems: RequestListItem[] = undos.map((row) => {
+      const environment = environmentById.get(row.environmentId);
+      const script = scriptById.get(row.scriptId);
+      return {
+        id: row.id,
+        kind: 'db_script_undo',
+        dbScriptId: row.scriptId,
+        dbScriptLabel: script
+          ? `${String(script.sequence).padStart(3, '0')} ${script.name}`
+          : '(deleted script)',
+        reason: row.reason,
+        requesterId: row.requesterId,
+        requesterEmail: emailById.get(row.requesterId) ?? '(deleted user)',
+        targetType: null,
+        projectId: environment?.projectId ?? null,
+        projectName: environment
+          ? (projectById.get(environment.projectId)?.name ??
+            '(deleted project)')
+          : null,
+        environmentId: row.environmentId,
+        environmentName: environment?.name ?? '(deleted environment)',
+        projectComponentId: null,
+        componentName: null,
+        key: null,
+        targetVersionId: null,
+        status: row.status,
+        reviewerId: row.reviewerId,
+        reviewerEmail: row.reviewerId
+          ? (emailById.get(row.reviewerId) ?? '(deleted user)')
+          : null,
+        reviewerNote: row.reviewerNote,
+        createdAt: row.createdAt,
+        reviewedAt: row.reviewedAt,
+      };
+    });
+
+    return [...deleteItems, ...rollbackItems, ...undoItems].sort(
       (a, b) => b.createdAt.getTime() - a.createdAt.getTime(),
     );
   }

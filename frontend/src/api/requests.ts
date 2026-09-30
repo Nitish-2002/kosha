@@ -6,13 +6,17 @@ import { apiGet, apiPost } from './client';
 export type DeleteOutcome = { status: 'deleted' } | { status: 'requested' };
 export type RollbackOutcome = { status: 'executed' } | { status: 'requested' };
 
-export type RequestKind = 'delete' | 'rollback';
+export type RequestKind = 'delete' | 'rollback' | 'db_script_undo';
 export type RequestTargetType = 'variable' | 'component' | 'environment' | 'project';
 export type RequestStatus = 'pending' | 'approved' | 'rejected';
 
 export interface RequestItem {
   id: string;
   kind: RequestKind;
+  // db_script_undo only.
+  dbScriptId: string | null;
+  dbScriptLabel: string | null;
+  reason: string | null;
   requesterId: string;
   requesterEmail: string;
   targetType: RequestTargetType | null;
