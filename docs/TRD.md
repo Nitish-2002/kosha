@@ -22,6 +22,24 @@ Two data planes, one metadata store:
 - **S3** holds the actual `.env` content for S3-backed components, one object per component per environment, versioned. This is the real source of truth for values; Postgres only stores the pointer (bucket/region/key/credential id) plus the Secret flags for that key set.
 - **GitHub** is read from directly at request time for GitHub-backed components — Kosha fetches the ConfigMap/Secret manifest at the configured path/branch and parses out keys (and, for ConfigMaps only, values). Nothing from GitHub is persisted beyond a short-lived read-through cache.
 
+### S3 `.env` parsing
+
+Kosha reads an S3 object with the `dotenv` parser (`backend/src/variables/env-file.util.ts`), after removing any leading `export ` from each line.
+
+- **Duplicate keys**: the last one wins. `A=1` then `A=2` reads as `A = "2"`, with no warning.
+- **Comments**:
+
+  | Line in the S3 file | What Kosha reads |
+  |---|---|
+  | `# note` | Ignored |
+  | `#E=value` | Ignored; `E` doesn't exist |
+  | `B=x # note` | `B = "x"` |
+  | `D=a#b` | `D = "a"`. A `#` starts a comment even with no space before it. |
+  | `C="y # kept"` | `C = "y # kept"`. Quotes keep the `#` in the value. |
+
+- **Saving rewrites the whole object** from the parsed keys, so any save from Kosha removes every comment, collapses duplicate keys to the winning value, and quotes every value (single quotes, or double quotes if the value contains an apostrophe). The previous object stays in S3 version history for 7 days.
+- A hand-written value containing `#` must be quoted in the file, or it is cut off. Kosha's own saves always quote values.
+
 Credentials (AWS access key/secret, or GitHub PAT) are stored once in a `credentials` table, encrypted at rest, and referenced by id from any number of environment/component configs. No credential value is ever duplicated into an environment config.
 
 ## Data model

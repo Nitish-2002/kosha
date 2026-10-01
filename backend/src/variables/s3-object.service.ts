@@ -88,7 +88,9 @@ export class S3ObjectService {
           Bucket: target.bucket,
           Key: target.key,
           Body: content,
-          ContentType: 'text/plain',
+          // ponytail: octet-stream, not text/plain — browsers append .txt to
+          // extensionless keys like `.env` on download when it's text/plain.
+          ContentType: 'application/octet-stream',
           ...(expectedEtag ? { IfMatch: expectedEtag } : { IfNoneMatch: '*' }),
         }),
       );
