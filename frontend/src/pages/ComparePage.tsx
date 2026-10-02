@@ -5,6 +5,7 @@ import { ApiError } from '../api/client';
 import { getProject, type ProjectSummary } from '../api/projects';
 import { listEnvironments, listComponentConfigs, type EnvironmentSummary, type ComponentConfigSummary } from '../api/environments';
 import { addToEnvironment, getDiff, type DiffResult } from '../api/diff';
+import { Loader } from '../components/Loader';
 import { Select } from '../components/Select';
 import './ComparePage.scss';
 
@@ -76,10 +77,12 @@ export function ComparePage() {
   const [environments, setEnvironments] = useState<EnvironmentSummary[]>([]);
   const [envAId, setEnvAId] = useState('');
   const [envBId, setEnvBId] = useState('');
-  const [configsA, setConfigsA] = useState<ComponentConfigSummary[]>([]);
-  const [configsB, setConfigsB] = useState<ComponentConfigSummary[]>([]);
+  // Keyed by environment id; a missing entry means its configs haven't loaded yet.
+  const [configsByEnvironment, setConfigsByEnvironment] = useState<Record<string, ComponentConfigSummary[]>>({});
   const [diffs, setDiffs] = useState<ComponentDiff[] | null>(null);
-  const [loading, setLoading] = useState(false);
+  // The "A:B" pair the diffs on screen belong to — differs from the picked
+  // pair while a new comparison is loading.
+  const [comparedPair, setComparedPair] = useState('');
   const [busy, setBusy] = useState(false);
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState<StatusFilter>('all');
@@ -91,44 +94,45 @@ export function ComparePage() {
 
   useEffect(() => {
     if (!projectId) return;
-    getProject(projectId)
-      .then(setProject)
-      .catch(() => showToast('Could not load this project.', 'error'));
-    listEnvironments(projectId)
-      .then((environmentsData) => {
+    // Together, so the page never flashes "needs two environments" while the
+    // environment list is still on its way.
+    Promise.all([getProject(projectId), listEnvironments(projectId)])
+      .then(([projectData, environmentsData]) => {
         setEnvironments(environmentsData);
         if (environmentsData.length >= 2) {
           setEnvAId(environmentsData[0].id);
           setEnvBId(environmentsData[1].id);
         }
+        setProject(projectData);
       })
-      .catch(() => showToast('Could not load environments.', 'error'));
+      .catch(() => showToast('Could not load this project.', 'error'));
   }, [projectId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
-    if (!envAId) return;
-    listComponentConfigs(envAId)
-      .then(setConfigsA)
-      .catch(() => setConfigsA([]));
-  }, [envAId]);
+    for (const environmentId of [envAId, envBId]) {
+      if (!environmentId || configsByEnvironment[environmentId]) continue;
+      listComponentConfigs(environmentId)
+        .catch(() => [] as ComponentConfigSummary[])
+        .then((configs) => setConfigsByEnvironment((current) => ({ ...current, [environmentId]: configs })));
+    }
+  }, [envAId, envBId, configsByEnvironment]);
 
-  useEffect(() => {
-    if (!envBId) return;
-    listComponentConfigs(envBId)
-      .then(setConfigsB)
-      .catch(() => setConfigsB([]));
-  }, [envBId]);
+  const configsA = configsByEnvironment[envAId];
+  const configsB = configsByEnvironment[envBId];
+  const pairKey = `${envAId}:${envBId}`;
 
   function runCompare(): void {
+    if (!configsA || !configsB) return;
+    const requestedPair = pairKey;
     const sharedPairs = configsA.flatMap((configA) => {
       const configB = configsB.find((candidate) => candidate.projectComponentId === configA.projectComponentId);
       return configB ? [{ configA, configB }] : [];
     });
     if (sharedPairs.length === 0) {
       setDiffs([]);
+      setComparedPair(requestedPair);
       return;
     }
-    setLoading(true);
     Promise.all(
       sharedPairs.map(({ configA, configB }) =>
         getDiff(configA.id, configB.id).then((result) => {
@@ -159,14 +163,19 @@ export function ComparePage() {
         // A single component has no summary worth showing — go straight to keys.
         if (componentDiffs.length === 1) setView('keys');
       })
-      .catch(() => showToast('Could not compare environments.', 'error'))
-      .finally(() => setLoading(false));
+      .catch(() => {
+        setDiffs(null);
+        showToast('Could not compare environments.', 'error');
+      })
+      .finally(() => setComparedPair(requestedPair));
   }
 
   useEffect(() => {
-    if (envAId && envBId && configsA.length > 0 && configsB.length > 0) runCompare();
+    runCompare();
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [envAId, envBId, configsA, configsB]);
+  }, [configsA, configsB]);
+
+  const comparing = environments.length >= 2 && comparedPair !== pairKey;
 
   const envAName = environments.find((environment) => environment.id === envAId)?.name ?? 'A';
   const envBName = environments.find((environment) => environment.id === envBId)?.name ?? 'B';
@@ -227,13 +236,9 @@ export function ComparePage() {
     setView('keys');
   }
 
-  // Swap the loaded configs too, so the diff never runs on a half-swapped pair
-  // while the (refetch-on-id-change) config loads are in flight.
   function swapEnvironments(): void {
     setEnvAId(envBId);
     setEnvBId(envAId);
-    setConfigsA(configsB);
-    setConfigsB(configsA);
   }
 
   async function addKeys(targets: { componentDiff: ComponentDiff; row: CompareRow }[]): Promise<void> {
@@ -281,10 +286,10 @@ export function ComparePage() {
     URL.revokeObjectURL(downloadUrl);
   }
 
-  const onlyConnectedInA = configsA.filter((configA) => !configsB.some((configB) => configB.projectComponentId === configA.projectComponentId));
-  const onlyConnectedInB = configsB.filter((configB) => !configsA.some((configA) => configA.projectComponentId === configB.projectComponentId));
+  const onlyConnectedInA = (configsA ?? []).filter((configA) => !configsB?.some((configB) => configB.projectComponentId === configA.projectComponentId));
+  const onlyConnectedInB = (configsB ?? []).filter((configB) => !configsA?.some((configA) => configA.projectComponentId === configB.projectComponentId));
 
-  if (!project) return <p className="compare-empty">Loading…</p>;
+  if (!project) return <Loader />;
 
   const statCards: { filter: StatusFilter; label: string; count: number }[] = [
     { filter: 'all', label: 'All keys', count: totalKeys },
@@ -331,8 +336,8 @@ export function ComparePage() {
         </div>
       )}
 
-      {loading && !diffs ? (
-        <p className="compare-empty">Comparing…</p>
+      {comparing ? (
+        <Loader label="Comparing…" />
       ) : diffs ? (
         <>
           {onlyConnectedInA.length > 0 && (

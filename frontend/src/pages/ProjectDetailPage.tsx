@@ -44,6 +44,7 @@ import { AccessDrawer } from '../components/AccessDrawer';
 import { DbScriptsSection } from './DbScriptsSection';
 import { GithubBulkEditForm } from './GithubBulkEditForm';
 import { ConfirmDialog } from '../components/ConfirmDialog';
+import { Loader } from '../components/Loader';
 import { Select } from '../components/Select';
 import { SECRET_REVEAL_DURATION_MS, VARIABLES_PAGE_SIZE } from '../constants';
 import { environmentColor } from '../lib/environmentColor';
@@ -201,7 +202,9 @@ export function ProjectDetailPage() {
   const [configs, setConfigs] = useState<ComponentConfigSummary[]>([]);
   const [variables, setVariables] = useState<MergedVariableRow[]>([]);
   const [loadingProject, setLoadingProject] = useState(true);
-  const [loadingEnv, setLoadingEnv] = useState(true);
+  // Which environment the configs/variables on screen belong to — differs
+  // from the active one while a switch is loading.
+  const [loadedEnvironmentId, setLoadedEnvironmentId] = useState<string | null>(null);
   const [creatingEnv, setCreatingEnv] = useState(false);
   const [activeTab, setActiveTab] = useState<ProjectTab>('variables');
   // The Member's own requests still awaiting review, so the item shows
@@ -252,11 +255,10 @@ export function ProjectDetailPage() {
     // never rendered in that case, so there's nothing to synchronize here.
     if (!activeEnvironmentId) return;
     if (!isAdmin) fetchMyPendingKeys().then(setMyPendingKeys).catch(() => undefined);
-    // loadingEnv is a one-time "first load" flag, same convention as every
-    // other page's `loading` state in this codebase — a later tab switch
-    // just replaces configs/variables in place once its fetch resolves,
-    // rather than re-arming a spinner (which would mean calling setState
-    // synchronously at the top of this effect on every re-run).
+    // The loader is derived (loadedEnvironmentId !== activeEnvironmentId), so
+    // switching environments shows it without a synchronous setState here,
+    // while a same-environment refresh after an edit updates in place.
+    const requestedEnvironmentId = activeEnvironmentId;
     listComponentConfigs(activeEnvironmentId)
       .then(async (configsData) => {
         setConfigs(configsData);
@@ -292,7 +294,7 @@ export function ProjectDetailPage() {
         );
       })
       .catch(() => showToast('Could not load this environment.', 'error'))
-      .finally(() => setLoadingEnv(false));
+      .finally(() => setLoadedEnvironmentId(requestedEnvironmentId));
   }
 
   useEffect(refreshEnvironment, [activeEnvironmentId, showToast, isAdmin]);
@@ -335,7 +337,7 @@ export function ProjectDetailPage() {
   if (loadingProject) {
     return (
       <div className="project-detail-page">
-        <p className="project-detail-empty">Loading…</p>
+        <Loader />
       </div>
     );
   }
@@ -455,8 +457,8 @@ export function ProjectDetailPage() {
       {activeTab === 'variables' &&
         (!activeEnvironment ? (
           noEnvironmentMessage
-        ) : loadingEnv ? (
-          <p className="project-detail-empty">Loading variables…</p>
+        ) : loadedEnvironmentId !== activeEnvironment.id ? (
+          <Loader label="Loading variables…" />
         ) : (
           <VariablesSection
             key={activeEnvironment.id}
@@ -481,6 +483,8 @@ export function ProjectDetailPage() {
       {isAdmin && activeTab === 'sources' &&
         (!activeEnvironment ? (
           noEnvironmentMessage
+        ) : loadedEnvironmentId !== activeEnvironment.id ? (
+          <Loader label="Loading sources…" />
         ) : (
           <ConnectionsSummary
             environment={activeEnvironment}
